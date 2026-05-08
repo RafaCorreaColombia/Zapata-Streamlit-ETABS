@@ -1,144 +1,126 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import engine  # Asegúrate de que engine.py esté en la misma carpeta
 
-# --- FUNCIONES DE UTILIDAD ---
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="Zapata Inteligente ETABS", layout="wide")
+st.title("🏗️ Diseñador de Zapatas Combinadas")
+
+# --- FUNCIONES DE UTILIDAD EN APP ---
 def encontrar_columna(lista_columnas, keywords):
-    """Busca una columna que contenga alguna de las palabras clave."""
     for col in lista_columnas:
         for key in keywords:
             if key.lower() in col.lower():
                 return col
     return None
 
-
-
-# --- INTERFAZ STREAMLIT ---
-st.set_page_config(page_title="Zapata Inteligente ETABS", layout="wide")
-st.title("🏗️ Diseñador de Zapatas Combinadas")
-
-# Sidebar
-st.sidebar.header("Configuración Geotécnica")
+# --- SIDEBAR: PARÁMETROS Y CARGA ---
+st.sidebar.header("1. Configuración Geotécnica")
 q_adm = st.sidebar.number_input("Esfuerzo Admisible (kN/m²)", value=250.0)
 factor_h = st.sidebar.slider("Relación H vs Distancia Ejes (1/X)", 8, 15, 10)
 
-# Carga de archivos
-col_u1, col_u2 = st.columns(2)
-with col_u1:
-    file_reacciones = st.file_uploader("1. Reacciones (CSV de ETABS)", type="csv")
-with col_u2:
-    file_coords = st.file_uploader("2. Coordenadas (CSV de ETABS)", type="csv")
+st.sidebar.header("2. Carga de Archivos ETABS")
+with st.sidebar:
+    file_reacciones = st.file_uploader("Reacciones (Joint Reactions)", type="csv")
+    file_coords = st.file_uploader("Coordenadas (Joint Coordinates)", type="csv")
+    file_conn = st.file_uploader("Conectividad (Column Connectivity)", type="csv")
+    file_sum = st.file_uploader("Resumen (Frame Assignments Summary)", type="csv")
+    file_sec = st.file_uploader("Secciones (Frame Sections)", type="csv")
 
-if file_reacciones and file_coords:
-    # Procesar archivos
-    df_r, unit_r = procesar_csv_etabs(file_reacciones)
-    df_c, unit_c = procesar_csv_etabs(file_coords)
+# --- LÓGICA PRINCIPAL ---
+if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
+    # Procesamiento inicial de datos
+    df_r, unit_r = engine.procesar_csv_etabs(file_reacciones)
+    df_c, unit_c = engine.procesar_csv_etabs(file_coords)
+    df_conn, _ = engine.procesar_csv_etabs(file_conn)
+    df_sum, _ = engine.procesar_csv_etabs(file_sum)
+    df_sec, _ = engine.procesar_csv_etabs(file_sec)
 
-    # Identificar columnas automáticamente
-    # Para reacciones
+    # Identificación automática de columnas críticas
     col_nodo_r = encontrar_columna(df_r.columns, ['label', 'node', 'joint'])
     col_comb = encontrar_columna(df_r.columns, ['combo', 'case', 'load'])
     col_fz = encontrar_columna(df_r.columns, ['fz', 'vertical', 'p '])
     col_mx = encontrar_columna(df_r.columns, ['mx'])
     col_my = encontrar_columna(df_r.columns, ['my'])
 
-    # Para coordenadas
     col_nodo_c = encontrar_columna(df_c.columns, ['label', 'node', 'joint'])
     col_x = encontrar_columna(df_c.columns, ['x'])
     col_y = encontrar_columna(df_c.columns, ['y'])
 
-    st.info(f"Detectado: Nodos en col '{col_nodo_r}', Cargas en '{col_fz}', Unidades: {unit_r.get(col_fz)}")
-
-    # --- ENTORNO DE TRABAJO ---
-    st.markdown("### Configuración de la Zapata")
-    
+    st.markdown("### 3. Configuración de la Zapata")
     c1, c2 = st.columns(2)
     with c1:
-        nodos_sel = st.multiselect("Nodos de las 2 columnas:", df_c[col_nodo_c].unique())
+        nodos_sel = st.multiselect("Nodos de las 2 columnas:", df_c[col_nodo_c].unique(), max_selections=2)
     with c2:
         combs_sel = st.multiselect("Combinaciones de Servicio:", df_r[col_comb].unique())
 
     if len(nodos_sel) == 2 and combs_sel:
-        # 1. Extraer Coordenadas
-        p1 = df_c[df_c[col_nodo_c] == nodos_sel[0]][[col_x, col_y]].values[0]
-        p2 = df_c[df_c[col_nodo_c] == nodos_sel[1]][[col_x, col_y]].values[0]
-        
-        # Calcular distancia y ángulo para transformación
-        dist_ejes = np.linalg.norm(p2 - p1)
-        # Si las unidades son mm, pasar a m
-        if unit_c.get(col_x) == 'mm': dist_ejes /= 1000.0
+        # Obtener datos de geometría de columnas desde el motor
+        g1 = engine.obtener_geometria_columna(nodos_sel[0], df_conn, df_sum, df_sec)
+        g2 = engine.obtener_geometria_columna(nodos_sel[1], df_conn, df_sum, df_sec)
+
+        if g1 and g2:
+            st.info(f"Columnas detectadas: {g1['label']} ({g1['seccion']}) y {g2['label']} ({g2['seccion']})")
             
-        st.write(f"**Distancia entre ejes:** {dist_ejes:.2f} m")
+            st.subheader("Configuración de Bordes")
+            col_b1, col_b2 = st.columns(2)
+            es_borde_1 = col_b1.checkbox(f"Columna {nodos_sel[0]} es de borde (Límite Izq)")
+            es_borde_2 = col_b2.checkbox(f"Columna {nodos_sel[1]} es de borde (Límite Der)")
 
-        # 2. Predimensionamiento H
-        H_preliminar = dist_ejes / factor_h
-        q_neto = q_adm - (24.0 * H_preliminar)
-        st.write(f"**H preliminar:** {H_preliminar:.2f} m | **Q neto:** {q_neto:.2f} kN/m²")
+            comb_ubicacion = st.selectbox("Seleccione combinación D+L para centrar zapata:", combs_sel)
 
+            # --- BOTÓN DE CÁLCULO ---
+            if st.button("🚀 Ejecutar Diseño Completo"):
+                # A. Preparar coordenadas y reacciones
+                p1 = df_c[df_c[col_nodo_c] == nodos_sel[0]][[col_x, col_y]].values[0]
+                p2 = df_c[df_c[col_nodo_c] == nodos_sel[1]][[col_x, col_y]].values[0]
+                
+                # Pasar coordenadas a metros si vienen en mm
+                if unit_c.get(col_x) == 'mm':
+                    p1 = p1 / 1000.0
+                    p2 = p2 / 1000.0
 
-# --- En app.py ---
+                reac1 = df_r[(df_r[col_nodo_r] == nodos_sel[0]) & (df_r[col_comb] == comb_ubicacion)].iloc[0].to_dict()
+                reac2 = df_r[(df_r[col_nodo_r] == nodos_sel[1]) & (df_r[col_comb] == comb_ubicacion)].iloc[0].to_dict()
 
-st.subheader("Configuración de Ubicación (D+L)")
-comb_ubicacion = st.selectbox("Seleccione la combinación para ubicar la zapata (Permanentes):", combs_sel)
+                # B. Motor: Ubicación y Predimensionamiento
+                res_ub = engine.procesar_geometria_y_cargas(p1, p2, reac1, reac2)
+                
+                L_ejes = res_ub['L_ejes']
+                dist_res = res_ub['x_resultante']
+                
+                # Definir longitud L para que quede centrada
+                # (OJO: Aquí puedes meter lógica de borde para ajustar L)
+                L_zapata = dist_res * 2
+                H_calc = L_ejes / factor_h
+                q_neto = q_adm - (24.0 * H_calc)
 
-if st.button("Calcular Ubicación Óptima"):
-    # 1. Filtrar reacciones para los 2 nodos y la combinación elegida
-    datos_c1 = df_r[(df_r[col_nodo_r] == nodos_sel[0]) & (df_r[col_comb] == comb_ubicacion)].iloc[0]
-    datos_c2 = df_r[(df_r[col_nodo_r] == nodos_sel[1]) & (df_r[col_comb] == comb_ubicacion)].iloc[0]
-    
-    # 2. Obtener coordenadas
-    coord_1 = df_c[df_c[col_nodo_c] == nodos_sel[0]][[col_x, col_y]].values[0]
-    coord_2 = df_c[df_c[col_nodo_c] == nodos_sel[1]][[col_x, col_y]].values[0]
-    
-    # 3. Ejecutar motor de cálculo
-    resultados = procesar_geometria_y_cargas(
-        coord_1, coord_2, 
-        {'FZ': datos_c1[col_fz], 'MX': datos_c1[col_mx], 'MY': datos_c1[col_my]},
-        {'FZ': datos_c2[col_fz], 'MX': datos_c2[col_mx], 'MY': datos_c2[col_my]}
-    )
-    
-    st.write(f"### Resultados de Ubicación")
-    st.success(f"La resultante de la combinación '{comb_ubicacion}' se encuentra a **{resultados['x_resultante']:.3f} m** del Nodo {nodos_sel[0]}.")
-    
-    # Sugerencia de longitud de zapata para que quede centrada
-    dist_al_borde = max(resultados['x_resultante'], resultados['L_ejes'] - resultados['x_resultante'])
-    L_min = dist_al_borde * 2
-    st.info(f"Para que la zapata esté centrada con la carga permanente, debería medir al menos **L = {L_min:.2f} m**.")     
-    
+                # C. Motor: Optimizar Ancho B (usando la carga total de servicio R_total)
+                B_optimo = engine.optimizar_ancho_B(
+                    L_zapata, 
+                    res_ub['R_total'], 
+                    0, # Momento transversal asumiendo 0 por ahora
+                    q_neto, 
+                    max(g1['t2'], g2['t2']) + 0.20 # Ancho mínimo físico + margen
+                )
 
+                # D. Motor: Secciones Críticas
+                criticos = engine.calcular_secciones_criticas(L_ejes, g1, g2, H_calc, es_borde_1, es_borde_2)
 
+                # E. RESULTADOS EN PANTALLA
+                st.success("### ✅ Diseño Finalizado")
+                res1, res2, res3 = st.columns(3)
+                res1.metric("Longitud L", f"{L_zapata:.2f} m")
+                res2.metric("Ancho B", f"{B_optimo:.2f} m")
+                res3.metric("Espesor H", f"{H_calc:.2f} m")
 
-st.subheader("Configuración de Bordes")
-col_b1, col_b2 = st.columns(2)
-with col_b1:
-    es_borde_1 = st.checkbox(f"Columna {nodos_sel[0]} es de borde")
-with col_b2:
-    es_borde_2 = st.checkbox(f"Columna {nodos_sel[1]} es de borde")
-
-# Si es de borde, forzamos que la distancia del nodo al extremo de la zapata 
-# sea exactamente t3/2 + recubrimiento (si aplica)
-if es_borde_1:
-    voladizo_izq = geom_c1['t3'] / 2
-    st.info(f"Límite izquierdo fijado en {voladizo_izq} m")
-
-
-
-import engine # Importas tu lógica
-
-# ... después de obtener los datos de ETABS ...
-if st.button("Diseñar"):
-    # 1. Obtener geometría de columnas
-    g1 = engine.obtener_geometria_columna(nodo1, df_conn, df_sum, df_sec)
-    g2 = engine.obtener_geometria_columna(nodo2, df_conn, df_sum, df_sec)
-    
-    # 2. Procesar cargas y ubicación
-    res_ub = engine.procesar_geometria_y_cargas(p1, p2, reac1, reac2)
-    
-    # 3. Calcular secciones y optimizar
-    L_zapata = res_ub['x_resultante'] * 2 # Para que sea centrada
-    B_optimo = engine.optimizar_ancho_B(L_zapata, res_ub['R_total'], 0, q_neto, max(g1['t2'], g2['t2']))
-    
-    st.success(f"Dimensiones sugeridas: L={L_zapata:.2f}m, B={B_optimo:.2f}m")
-
-
-
+                with st.expander("Ver Detalles de Verificación"):
+                    st.write(f"**Carga Total (Servicio):** {res_ub['R_total']:.2f} kN")
+                    st.write(f"**Peralte Efectivo d:** {criticos['d']:.3f} m")
+                    st.write(f"**Bo Columna 1:** {criticos['bo_1']:.2f} m")
+                    st.write(f"**Bo Columna 2:** {criticos['bo_2']:.2f} m")
+        else:
+            st.error("No se pudo encontrar la geometría de las columnas. Verifique los archivos de Conectividad y Resumen.")
+else:
+    st.warning("Por favor, cargue los 5 archivos de ETABS en el panel izquierdo para comenzar.")
