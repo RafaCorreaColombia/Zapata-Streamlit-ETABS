@@ -123,6 +123,42 @@ if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
                 # D. Motor: Secciones Críticas
                 criticos = engine.calcular_secciones_criticas(L_ejes, g1, g2, H_calc, es_borde_1, es_borde_2)
 
+                # --- En app.py, dentro del botón de diseño ---
+
+st.subheader("🛡️ Verificación de Cortante (Peor Caso de Diseño)")
+
+# Ejecutar el bucle de todas las combinaciones de diseño
+res_diseno = engine.analizar_combinaciones_diseno(
+    df_r, nodos_sel, combs_sel, col_nodo_r, col_comb, col_fz, 
+    L_zapata, B_optimo, g1, g2, H_calc, es_borde_1, es_borde_2
+)
+
+# Capacidades Nominales (Phi * Vn)
+phi_v = 0.75
+lambda_c = 1.0
+vn_1d = (0.17 * lambda_c * np.sqrt(fc) * (B_optimo * 1000) * (d * 1000)) / 1000 # kN
+
+# Punzonamiento (La más restrictiva de las 3 fórmulas ACI)
+vn_2d_c1 = (0.33 * lambda_c * np.sqrt(fc) * (criticos['bo_1'] * 1000) * (d * 1000)) / 1000 # kN
+
+# Crear Tabla de Resultados
+data_check = {
+    "Chequeo": ["Cortante 1D", f"Punzonamiento {g1['label']}", f"Punzonamiento {g2['label']}"],
+    "Demanda (Vu)": [f"{res_diseno['vu_1d_max']:.1f} kN", f"{res_diseno['vu_2d_c1_max']:.1f} kN", f"{res_diseno['vu_2d_c2_max']:.1f} kN"],
+    "Capacidad (φVn)": [f"{phi_v*vn_1d:.1f} kN", f"{phi_v*vn_2d_c1:.1f} kN", f"{phi_v*vn_2d_c1:.1f} kN"],
+    "Estado": [
+        "✅ OK" if res_diseno['vu_1d_max'] < phi_v*vn_1d else "❌ FALLA",
+        "✅ OK" if res_diseno['vu_2d_c1_max'] < phi_v*vn_2d_c1 else "❌ FALLA",
+        "✅ OK" if res_diseno['vu_2d_c2_max'] < phi_v*vn_2d_c1 else "❌ FALLA"
+    ]
+}
+
+st.table(pd.DataFrame(data_check))
+st.caption(f"Combinación crítica para 1D: {res_diseno['comb_critica_1d']}")
+st.caption(f"Combinación crítica para Punzonamiento: {res_diseno['comb_critica_2d']}")
+
+                
+
                 # E. RESULTADOS EN PANTALLA
                 st.success("### ✅ Diseño Finalizado")
                 res1, res2, res3 = st.columns(3)
