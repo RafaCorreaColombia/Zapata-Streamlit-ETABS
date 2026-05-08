@@ -119,7 +119,20 @@ if st.button("Calcular Ubicación Óptima"):
     st.info(f"Para que la zapata esté centrada con la carga permanente, debería medir al menos **L = {L_min:.2f} m**.")     
     
 
-        # Aquí seguiría tu lógica de:
-        # - Sumar P de ambos nodos para cada combinación
-        # - Calcular excentricidad para centrar la resultante
-        # - Ajustar L y B para que sigma < q_neto
+
+
+st.subheader("Configuración de Bordes")
+col_b1, col_b2 = st.columns(2)
+with col_b1:
+    es_borde_1 = st.checkbox(f"Columna {nodos_sel[0]} es de borde")
+with col_b2:
+    es_borde_2 = st.checkbox(f"Columna {nodos_sel[1]} es de borde")
+
+# Si es de borde, forzamos que la distancia del nodo al extremo de la zapata 
+# sea exactamente t3/2 + recubrimiento (si aplica)
+if es_borde_1:
+    voladizo_izq = geom_c1['t3'] / 2
+    st.info(f"Límite izquierdo fijado en {voladizo_izq} m")
+
+
+
