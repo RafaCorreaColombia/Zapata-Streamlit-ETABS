@@ -39,11 +39,15 @@ def procesar_geometria_y_cargas(p1, p2, reacciones_n1, reacciones_n2):
     
     # 2. Transformación de Momentos a sistema local de la zapata
     # Convención: X_local alineado con el eje de la zapata
-    def rotar_momentos(mx_global, my_global, angle):
-        # En ETABS Mx hace rotar alrededor de X. 
-        # Para alinearlo con la zapata usamos la matriz de rotación:
+        def rotar_momentos(mx_global, my_global, angle):
+        # Transformación de componentes de vector momento al sistema local de la zapata
+        # m_longitudinal: momento que produce flexión en el sentido corto (eje local X)
+        # m_transversal: momento que produce flexión en el sentido largo (eje local Y)
         m_long = mx_global * np.cos(angle) + my_global * np.sin(angle)
         m_trans = -mx_global * np.sin(angle) + my_global * np.cos(angle)
+    
+        # Si tu convención manual es antihoraria, verifica el signo resultante 
+        # según cómo definas el eje Z (hacia arriba o hacia abajo).
         return m_long, m_trans
 
     ml_1, mt_1 = rotar_momentos(reacciones_n1['MX'], reacciones_n1['MY'], alpha)
@@ -73,24 +77,59 @@ def procesar_geometria_y_cargas(p1, p2, reacciones_n1, reacciones_n2):
 
 # --- LÓGICA DE DISEÑO (Engine) ---
 
-def calcular_secciones_criticas(dist_ejes, geom_c1, geom_c2, H):
-    d = H - 0.075 # Peralte efectivo (suponiendo recubrimiento de 7.5cm)
+def calcular_secciones_criticas(dist_ejes, geom_c1, geom_c2, H, es_borde_1=False, es_borde_2=False):
+    d = H - 0.075  # Peralte efectivo en metros
     
-    # Supongamos que t3 está alineado con el eje largo de la zapata (X-local)
-    # Cara de la columna 1: -t3_1/2
-    # Cara de la columna 2: dist_ejes + t3_2/2
+    # 1. Cortante 1D (a distancia 'd' de la cara de la columna)
+    # Columna 1 está en x=0, Columna 2 está en x=dist_ejes
+    x_crit_v1 = (geom_c1['t3'] / 2) + d
+    x_crit_v2 = dist_ejes - (geom_c2['t3'] / 2) - d
     
-    # Cortante 1D: Se evalúa a 'd' de la cara
-    x_critico_v1 = (geom_c1['t3']/2) + d
-    x_critico_v2 = dist_ejes - (geom_c2['t3']/2) - d
+    # 2. Punzonamiento (bo)
+    def calcular_bo(t3, t2, peralte, es_borde):
+        if es_borde:
+            # Perímetro de 3 lados (asumiendo que el borde corta el lado t2)
+            return (2 * (t3 + peralte/2)) + (t2 + peralte)
+        else:
+            # Perímetro completo de 4 lados
+            return 2 * (t3 + peralte) + 2 * (t2 + peralte)
+
+    bo_1 = calcular_bo(geom_c1['t3'], geom_c1['t2'], d, es_borde_1)
+    bo_2 = calcular_bo(geom_c2['t3'], geom_c2['t2'], d, es_borde_2)
     
-    # Punzonamiento: Perímetro a d/2 de las caras
-    bo_1 = 2 * (geom_c1['t3'] + d) + 2 * (geom_c1['t2'] + d)
-    # (Aquí deberías validar si es de borde para restar un lado del perímetro)
-    
-    return x_critico_v1, x_critico_v2, bo_1, d
+    return {
+        'x_v1': x_crit_v1,
+        'x_v2': x_crit_v2,
+        'bo_1': bo_1,
+        'bo_2': bo_2,
+        'd': d
+    }
 
 
+
+
+def optimizar_ancho_B(L, R_total, M_trans_total, q_neto, B_min_geom):
+    """
+    Busca el ancho B que cumpla que la presión máxima sea menor al q_neto.
+    B_min_geom: El ancho mínimo para que las columnas quepan físicamente.
+    """
+    # Empezamos con el ancho mínimo físico
+    B = B_min_geom
+    paso = 0.05 # incrementos de 5cm
+    
+    while True:
+        area = L * B
+        inercia_y = (L * B**3) / 12 # inercia transversal
+        # Suponiendo excentricidad accidental o momentos transversales
+        sigma_max = (R_total / area) + (abs(M_trans_total) * (B/2) / inercia_y)
+        
+        if sigma_max <= q_neto:
+            break
+        B += paso
+        if B > 10.0: # Límite de seguridad para evitar bucles infinitos
+            return None
+            
+    return round(B, 2)
 
 
 
