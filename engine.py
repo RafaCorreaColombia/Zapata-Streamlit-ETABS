@@ -1,6 +1,25 @@
 import numpy as np
 
 
+def procesar_csv_etabs(file):
+    """Lee el CSV saltando la tabla de título y manejando las unidades."""
+    # ETABS suele tener: Fila 0: Título, Fila 1: Headers, Fila 2: Unidades
+    df = pd.read_csv(file, skiprows=1)
+    
+    # Extraer fila de unidades (es la primera fila de datos tras el skip)
+    unidades = df.iloc[0].to_dict()
+    
+    # Limpiar el dataframe: quitar la fila de unidades y convertir a números
+    df = df.drop(0).reset_index(drop=True)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors='ignore')
+    
+    return df, unidades
+
+
+
+
+
 def obtener_geometria_columna(nodo_id, df_conn, df_sum, df_sec):
     try:
         # 1. Nodo -> Label de Columna (ej: 14 -> C1)
