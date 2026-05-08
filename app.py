@@ -30,12 +30,27 @@ with st.sidebar:
 
 # --- LÓGICA PRINCIPAL ---
 if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
-    # Procesamiento inicial de datos
+if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
+    # Procesar todos con el mismo motor adaptativo
     df_r, unit_r = engine.procesar_csv_etabs(file_reacciones)
     df_c, unit_c = engine.procesar_csv_etabs(file_coords)
     df_conn, _ = engine.procesar_csv_etabs(file_conn)
     df_sum, _ = engine.procesar_csv_etabs(file_sum)
     df_sec, _ = engine.procesar_csv_etabs(file_sec)
+
+    # --- NUEVOS MAPEOS DIFUSOS ---
+    # Para Conectividad
+    col_conn_col = encontrar_columna(df_conn.columns, ['column', 'label', 'line'])
+    col_conn_node = encontrar_columna(df_conn.columns, ['i-end', 'joint', 'node'])
+
+    # Para Secciones
+    col_sec_name = encontrar_columna(df_sec.columns, ['name', 'section', 'prop'])
+    col_sec_t3 = encontrar_columna(df_sec.columns, ['t3', 'depth', 'height'])
+    col_sec_t2 = encontrar_columna(df_sec.columns, ['t2', 'width'])
+    
+    # Para Resumen (Summary)
+    col_sum_col = encontrar_columna(df_sum.columns, ['label', 'column'])
+    col_sum_sec = encontrar_columna(df_sum.columns, ['analysis', 'section', 'property'])
 
     # Identificación automática de columnas críticas
     col_nodo_r = encontrar_columna(df_r.columns, ['label', 'node', 'joint'])
