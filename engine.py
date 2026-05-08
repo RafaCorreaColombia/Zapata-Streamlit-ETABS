@@ -4,12 +4,25 @@ import numpy as np
 # --- 1. PROCESAMIENTO DE DATOS ---
 
 def procesar_csv_etabs(file):
-    """Lee el CSV saltando la tabla de título y manejando las unidades."""
+    """
+    Lector universal para cualquier tabla de ETABS (v16 a v21+).
+    Salta el título, captura unidades y limpia nombres de columnas.
+    """
+    # 1. Leer saltando la primera fila (TABLE: XXX)
     df = pd.read_csv(file, skiprows=1)
+    
+    # 2. Capturar unidades (Fila 0 después del skip) y limpiar espacios
     unidades = df.iloc[0].to_dict()
+    unidades = {str(k).strip(): str(v).strip() for k, v in unidades.items()}
+    
+    # 3. Limpiar el DataFrame
     df = df.drop(0).reset_index(drop=True)
+    df.columns = df.columns.str.strip() # Quita espacios de los títulos de columnas
+    
+    # 4. Convertir a números lo que sea numérico
     for col in df.columns:
         df[col] = pd.to_numeric(df[col], errors='ignore')
+        
     return df, unidades
 
 def obtener_geometria_columna(nodo_id, df_conn, df_sum, df_sec):
