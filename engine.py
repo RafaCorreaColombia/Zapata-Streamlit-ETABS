@@ -115,6 +115,54 @@ def calcular_secciones_criticas(dist_ejes, g1, g2, H, es_borde1, es_borde2):
         'xv1': x_v1, 'xv2': x_v2
     }
 
+
+
+
+def calcular_vu_1d(qu, B, L, dist_ejes, g1, g2, d):
+    """
+    Calcula el Vu a una distancia d de las caras internas de las columnas.
+    """
+    # Cara interna de Col 1 (ubicada en x=0)
+    cara_interna_c1 = g1['t3'] / 2
+    # Cara interna de Col 2 (ubicada en x=dist_ejes)
+    cara_interna_c2 = dist_ejes - (g2['t3'] / 2)
+    
+    # Secciones críticas
+    seccion_v1 = cara_interna_c1 + d
+    seccion_v2 = cara_interna_c2 - d
+    
+    # El cortante 1D es la presión acumulada en el voladizo o entre apoyos
+    # Simplificación: qu * Area de la zona tributaria
+    # Vu = qu * B * (distancia_al_punto_de_cero_cortante)
+    
+    # Para una zapata combinada, el Vu 1D máximo suele ser:
+    Vu_max = qu * B * (dist_ejes / 2 - cara_interna_c1 - d) 
+    
+    return abs(Vu_max)
+
+
+
+
+def calcular_vu_punzonamiento(P_u_columna, qu, t3, t2, d, es_borde):
+    """
+    P_u_columna: Carga última de la columna (FZ de ETABS con combo de diseño)
+    """
+    if es_borde:
+        # Área dentro del perímetro crítico (3 lados)
+        area_critica = (t3 + d/2) * (t2 + d)
+    else:
+        # Área dentro del perímetro crítico (4 lados)
+        area_critica = (t3 + d) * (t2 + d)
+        
+    # Vu es la carga que "intenta" atravesar la zapata
+    Vu_punzon = P_u_columna - (qu * area_critica)
+    
+    return Vu_punzon
+
+
+
+
+
 def diseno_refuerzo(Mu, d, B, fc, fy=420):
     """Calcula el acero requerido por flexión (ACI 318)."""
     phi = 0.9
