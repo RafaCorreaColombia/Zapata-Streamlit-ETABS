@@ -88,6 +88,37 @@ if file_reacciones and file_coords:
         q_neto = q_adm - (24.0 * H_preliminar)
         st.write(f"**H preliminar:** {H_preliminar:.2f} m | **Q neto:** {q_neto:.2f} kN/m²")
 
+
+# --- En app.py ---
+
+st.subheader("Configuración de Ubicación (D+L)")
+comb_ubicacion = st.selectbox("Seleccione la combinación para ubicar la zapata (Permanentes):", combs_sel)
+
+if st.button("Calcular Ubicación Óptima"):
+    # 1. Filtrar reacciones para los 2 nodos y la combinación elegida
+    datos_c1 = df_r[(df_r[col_nodo_r] == nodos_sel[0]) & (df_r[col_comb] == comb_ubicacion)].iloc[0]
+    datos_c2 = df_r[(df_r[col_nodo_r] == nodos_sel[1]) & (df_r[col_comb] == comb_ubicacion)].iloc[0]
+    
+    # 2. Obtener coordenadas
+    coord_1 = df_c[df_c[col_nodo_c] == nodos_sel[0]][[col_x, col_y]].values[0]
+    coord_2 = df_c[df_c[col_nodo_c] == nodos_sel[1]][[col_x, col_y]].values[0]
+    
+    # 3. Ejecutar motor de cálculo
+    resultados = procesar_geometria_y_cargas(
+        coord_1, coord_2, 
+        {'FZ': datos_c1[col_fz], 'MX': datos_c1[col_mx], 'MY': datos_c1[col_my]},
+        {'FZ': datos_c2[col_fz], 'MX': datos_c2[col_mx], 'MY': datos_c2[col_my]}
+    )
+    
+    st.write(f"### Resultados de Ubicación")
+    st.success(f"La resultante de la combinación '{comb_ubicacion}' se encuentra a **{resultados['x_resultante']:.3f} m** del Nodo {nodos_sel[0]}.")
+    
+    # Sugerencia de longitud de zapata para que quede centrada
+    dist_al_borde = max(resultados['x_resultante'], resultados['L_ejes'] - resultados['x_resultante'])
+    L_min = dist_al_borde * 2
+    st.info(f"Para que la zapata esté centrada con la carga permanente, debería medir al menos **L = {L_min:.2f} m**.")     
+    
+
         # Aquí seguiría tu lógica de:
         # - Sumar P de ambos nodos para cada combinación
         # - Calcular excentricidad para centrar la resultante
