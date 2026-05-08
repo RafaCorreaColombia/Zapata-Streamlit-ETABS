@@ -1,5 +1,30 @@
 import numpy as np
 
+
+def obtener_geometria_columna(nodo_id, df_conn, df_sum, df_sec):
+    try:
+        # 1. Nodo -> Label de Columna (ej: 14 -> C1)
+        # Buscamos en I-End Point o J-End Point
+        row_conn = df_conn[(df_conn['I-End Point'] == nodo_id) | (df_conn['J-End Point'] == nodo_id)]
+        col_label = row_conn['Column'].values[0]
+        
+        # 2. Label -> Nombre de Sección (ej: C1 -> C4040)
+        row_sum = df_sum[df_sum['Label'] == col_label].iloc[0]
+        nombre_seccion = row_sum['Analysis Section']
+        
+        # 3. Nombre -> Dimensiones (ej: C4040 -> t3=400, t2=400)
+        row_sec = df_sec[df_sec['Name'] == nombre_seccion].iloc[0]
+        return {
+            'label': col_label,
+            'seccion': nombre_seccion,
+            't3': row_sec['t3'] / 1000, # pasar a metros
+            't2': row_sec['t2'] / 1000
+        }
+    except:
+        return None
+        
+
+
 def procesar_geometria_y_cargas(p1, p2, reacciones_n1, reacciones_n2):
     """
     p1, p2: arrays [x, y] de coordenadas
@@ -42,3 +67,30 @@ def procesar_geometria_y_cargas(p1, p2, reacciones_n1, reacciones_n2):
         'x_resultante': x_res, # Distancia desde Nodo 1 al centro de presiones
         'alpha_deg': np.degrees(alpha)
     }
+
+
+
+
+# --- LÓGICA DE DISEÑO (Engine) ---
+
+def calcular_secciones_criticas(dist_ejes, geom_c1, geom_c2, H):
+    d = H - 0.075 # Peralte efectivo (suponiendo recubrimiento de 7.5cm)
+    
+    # Supongamos que t3 está alineado con el eje largo de la zapata (X-local)
+    # Cara de la columna 1: -t3_1/2
+    # Cara de la columna 2: dist_ejes + t3_2/2
+    
+    # Cortante 1D: Se evalúa a 'd' de la cara
+    x_critico_v1 = (geom_c1['t3']/2) + d
+    x_critico_v2 = dist_ejes - (geom_c2['t3']/2) - d
+    
+    # Punzonamiento: Perímetro a d/2 de las caras
+    bo_1 = 2 * (geom_c1['t3'] + d) + 2 * (geom_c1['t2'] + d)
+    # (Aquí deberías validar si es de borde para restar un lado del perímetro)
+    
+    return x_critico_v1, x_critico_v2, bo_1, d
+
+
+
+
+
