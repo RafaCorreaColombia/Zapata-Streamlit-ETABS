@@ -11,20 +11,7 @@ def encontrar_columna(lista_columnas, keywords):
                 return col
     return None
 
-def procesar_csv_etabs(file):
-    """Lee el CSV saltando la tabla de título y manejando las unidades."""
-    # ETABS suele tener: Fila 0: Título, Fila 1: Headers, Fila 2: Unidades
-    df = pd.read_csv(file, skiprows=1)
-    
-    # Extraer fila de unidades (es la primera fila de datos tras el skip)
-    unidades = df.iloc[0].to_dict()
-    
-    # Limpiar el dataframe: quitar la fila de unidades y convertir a números
-    df = df.drop(0).reset_index(drop=True)
-    for col in df.columns:
-        df[col] = pd.to_numeric(df[col], errors='ignore')
-    
-    return df, unidades
+
 
 # --- INTERFAZ STREAMLIT ---
 st.set_page_config(page_title="Zapata Inteligente ETABS", layout="wide")
@@ -133,6 +120,25 @@ with col_b2:
 if es_borde_1:
     voladizo_izq = geom_c1['t3'] / 2
     st.info(f"Límite izquierdo fijado en {voladizo_izq} m")
+
+
+
+import engine # Importas tu lógica
+
+# ... después de obtener los datos de ETABS ...
+if st.button("Diseñar"):
+    # 1. Obtener geometría de columnas
+    g1 = engine.obtener_geometria_columna(nodo1, df_conn, df_sum, df_sec)
+    g2 = engine.obtener_geometria_columna(nodo2, df_conn, df_sum, df_sec)
+    
+    # 2. Procesar cargas y ubicación
+    res_ub = engine.procesar_geometria_y_cargas(p1, p2, reac1, reac2)
+    
+    # 3. Calcular secciones y optimizar
+    L_zapata = res_ub['x_resultante'] * 2 # Para que sea centrada
+    B_optimo = engine.optimizar_ancho_B(L_zapata, res_ub['R_total'], 0, q_neto, max(g1['t2'], g2['t2']))
+    
+    st.success(f"Dimensiones sugeridas: L={L_zapata:.2f}m, B={B_optimo:.2f}m")
 
 
 
