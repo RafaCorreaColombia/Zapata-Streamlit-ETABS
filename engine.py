@@ -2,54 +2,51 @@ import pandas as pd
 import numpy as np
 
 # --- 1. PROCESAMIENTO DE DATOS ---
-
 def procesar_csv_etabs(file):
-    """
-    Lector universal para cualquier tabla de ETABS.
-    Maneja errores de codificación (UnicodeDecodeError).
-    """
     try:
-        # Primero intentamos con la codificación estándar UTF-8
         df = pd.read_csv(file, skiprows=1)
     except UnicodeDecodeError:
-        # Si falla, retrocedemos a 'latin-1' que es común en archivos de Windows/ETABS
-        file.seek(0) # Volver al inicio del archivo para re-leer
+        file.seek(0)
         df = pd.read_csv(file, skiprows=1, encoding='latin-1')
     
-    # Capturar unidades (Fila 0 después del skip)
     unidades = df.iloc[0].to_dict()
     unidades = {str(k).strip(): str(v).strip() for k, v in unidades.items()}
-    
-    # Limpiar el DataFrame
     df = df.drop(0).reset_index(drop=True)
     df.columns = df.columns.str.strip()
     
-    # Convertir a números de forma segura
     for col in df.columns:
         try:
             df[col] = pd.to_numeric(df[col])
         except (ValueError, TypeError):
             continue
-            
     return df, unidades
 
 def obtener_geometria_columna(nodo_id, df_conn, df_sum, df_sec):
     try:
-        # Convertimos todo a string para comparar sin errores de tipo
-        nodo_id_str = str(nodo_id)
+        # Forzar a string para evitar errores de tipo (14 vs "14")
+        nid = str(nodo_id)
         df_conn['I-End Point'] = df_conn['I-End Point'].astype(str)
         df_conn['J-End Point'] = df_conn['J-End Point'].astype(str)
 
-        row_conn = df_conn[(df_conn['I-End Point'] == nodo_id_str) | (df_conn['J-End Point'] == nodo_id_str)]
+        # Buscar el nodo en la conectividad
+        row_conn = df_conn[(df_conn['I-End Point'] == nid) | (df_conn['J-End Point'] == nid)]
+        if row_conn.empty: return None
         
-        if row_conn.empty:
-            return None
-            
         col_label = row_conn['Column'].values[0]
-        # ... resto del código igual ...
+        row_sum = df_sum[df_sum['Label'] == col_label].iloc[0]
+        nombre_seccion = row_sum['Analysis Section']
+        
+        row_sec = df_sec[df_sec['Name'] == nombre_seccion].iloc[0]
+        return {
+            'label': col_label,
+            'seccion': nombre_seccion,
+            't3': row_sec['t3'] / 1000, 
+            't2': row_sec['t2'] / 1000  
+        }
+    except:
+        return None
 
 # --- 2. TRANSFORMACIÓN Y GEOMETRÍA ---
-
 def rotar_momentos(mx_global, my_global, angle):
     m_long = mx_global * np.cos(angle) + my_global * np.sin(angle)
     m_trans = -mx_global * np.sin(angle) + my_global * np.cos(angle)
@@ -59,29 +56,23 @@ def procesar_geometria_y_cargas(p1, p2, reac1, reac2):
     vector_z = p2 - p1
     L_ejes = np.linalg.norm(vector_z)
     alpha = np.arctan2(vector_z[1], vector_z[0])
+    
     ml_1, mt_1 = rotar_momentos(reac1['MX'], reac1['MY'], alpha)
     ml_2, mt_2 = rotar_momentos(reac2['MX'], reac2['MY'], alpha)
+    
     R = reac1['FZ'] + reac2['FZ']
     x_res = (reac2['FZ'] * L_ejes + mt_1 + mt_2) / R
     return {
-        'L_ejes': L_ejes,
-        'R_total': R,
-        'x_resultante': x_res,
-        'alpha': alpha,
-        'm_trans_total': ml_1 + ml_2 
+        'L_ejes': L_ejes, 'R_total': R, 'x_resultante': x_res,
+        'alpha': alpha, 'm_trans_total': ml_1 + ml_2 
     }
 
 # --- 3. DISEÑO Y VERIFICACIONES ---
-
 def calcular_presiones_4_esquinas(L, B, P, M_long, M_trans):
     A = L * B
-    Ix = (B * L**3) / 12
-    Iy = (L * B**3) / 12
+    Ix, Iy = (B * L**3) / 12, (L * B**3) / 12
     esquinas = [(L/2, B/2), (L/2, -B/2), (-L/2, B/2), (-L/2, -B/2)]
-    presiones = []
-    for x, y in esquinas:
-        sigma = (P/A) + (M_long * x / Ix) + (M_trans * y / Iy)
-        presiones.append(sigma)
+    presiones = [ (P/A) + (M_long * x / Ix) + (M_trans * y / Iy) for x, y in esquinas ]
     return max(presiones), min(presiones)
 
 def optimizar_ancho_B(L, P_total, M_trans, q_neto, B_min_fisico):
@@ -93,19 +84,13 @@ def optimizar_ancho_B(L, P_total, M_trans, q_neto, B_min_fisico):
         B += 0.05
     return B
 
-def calcular_secciones_criticas(dist_ejes, g1, g2, H, es_borde1, es_borde2):
+def calcular_secciones_criticas(dist_ejes, g1, g2, H, b1, b2):
     d = H - 0.075
-    x_v1 = (g1['t3']/2) + d
-    x_v2 = dist_ejes - (g2['t3']/2) - d
-    
     def bo_calc(t3, t2, d_val, borde):
         return (2*(t3+d_val) + t2+d_val) if borde else 2*(t3+d_val + t2+d_val)
-
     return {
-        'd': d,
-        'bo1': bo_calc(g1['t3'], g1['t2'], d, es_borde1),
-        'bo2': bo_calc(g2['t3'], g2['t2'], d, es_borde2),
-        'xv1': x_v1, 'xv2': x_v2
+        'd': d, 'bo1': bo_calc(g1['t3'], g1['t2'], d, b1),
+        'bo2': bo_calc(g2['t3'], g2['t2'], d, b2)
     }
 
 def analizar_combinaciones_diseno(df_r, nodos, combs, col_nodo, col_comb, col_fz, L, B, g1, g2, H, b1, b2):
@@ -115,18 +100,13 @@ def analizar_combinaciones_diseno(df_r, nodos, combs, col_nodo, col_comb, col_fz
         r1 = df_r[(df_r[col_nodo] == nodos[0]) & (df_r[col_comb] == c)].iloc[0]
         r2 = df_r[(df_r[col_nodo] == nodos[1]) & (df_r[col_comb] == c)].iloc[0]
         qu = (r1[col_fz] + r2[col_fz]) / (L * B)
-        
-        # Vu 1D simplificado
         v1d = abs(qu * B * ( (L/2) - (g1['t3']/2) - d ))
         
-        # Punzonamiento
-        area1 = (g1['t3']+d)*(g1['t2']+d) if not b1 else (g1['t3']+d/2)*(g1['t2']+d)
-        area2 = (g2['t3']+d)*(g2['t2']+d) if not b2 else (g2['t3']+d/2)*(g2['t2']+d)
-        v2d1 = r1[col_fz] - (qu * area1)
-        v2d2 = r2[col_fz] - (qu * area2)
+        a1 = (g1['t3']+d)*(g1['t2']+d) if not b1 else (g1['t3']+d/2)*(g1['t2']+d)
+        a2 = (g2['t3']+d)*(g2['t2']+d) if not b2 else (g2['t3']+d/2)*(g2['t2']+d)
+        v2d1, v2d2 = r1[col_fz] - (qu * a1), r2[col_fz] - (qu * a2)
 
-        if v1d > res['vu_1d_max']:
-            res['vu_1d_max'], res['comb_critica_1d'] = v1d, c
+        if v1d > res['vu_1d_max']: res['vu_1d_max'], res['comb_critica_1d'] = v1d, c
         if max(v2d1, v2d2) > max(res['vu_2d_c1_max'], res['vu_2d_c2_max']):
             res['vu_2d_c1_max'], res['vu_2d_c2_max'], res['comb_critica_2d'] = v2d1, v2d2, c
     return res
