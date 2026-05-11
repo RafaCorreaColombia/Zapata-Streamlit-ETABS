@@ -35,19 +35,18 @@ def procesar_csv_etabs(file):
 
 def obtener_geometria_columna(nodo_id, df_conn, df_sum, df_sec):
     try:
-        row_conn = df_conn[(df_conn['I-End Point'] == nodo_id) | (df_conn['J-End Point'] == nodo_id)]
+        # Convertimos todo a string para comparar sin errores de tipo
+        nodo_id_str = str(nodo_id)
+        df_conn['I-End Point'] = df_conn['I-End Point'].astype(str)
+        df_conn['J-End Point'] = df_conn['J-End Point'].astype(str)
+
+        row_conn = df_conn[(df_conn['I-End Point'] == nodo_id_str) | (df_conn['J-End Point'] == nodo_id_str)]
+        
+        if row_conn.empty:
+            return None
+            
         col_label = row_conn['Column'].values[0]
-        row_sum = df_sum[df_sum['Label'] == col_label].iloc[0]
-        nombre_seccion = row_sum['Analysis Section']
-        row_sec = df_sec[df_sec['Name'] == nombre_seccion].iloc[0]
-        return {
-            'label': col_label,
-            'seccion': nombre_seccion,
-            't3': row_sec['t3'] / 1000, 
-            't2': row_sec['t2'] / 1000  
-        }
-    except:
-        return None
+        # ... resto del código igual ...
 
 # --- 2. TRANSFORMACIÓN Y GEOMETRÍA ---
 
