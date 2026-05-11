@@ -105,7 +105,9 @@ if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
                     st.write(f"Nodo {nodos_sel[1]}: Fz={reac2[col_fz]:.1f}, Mx={reac2[col_mx]:.1f}, My={reac2[col_my]:.1f}")
 
                 # C. Centroide y Dimensionamiento
-                L_zapata = res_ub['x_resultante'] * 2
+                L_equilibrio = res_ub['x_resultante'] * 2
+                L_min_geom = res_ub['L_ejes'] + (g1['t3']/2) + (g2['t3']/2) + 0.20
+                L_zapata = max(L_equilibrio, L_min_geom)
                 H_calc = res_ub['L_ejes'] / factor_h
                 q_neto = q_adm - (24.0 * H_calc)
                 B_fisico = max(g1['t2'], g2['t2']) + 0.20
