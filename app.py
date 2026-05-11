@@ -81,7 +81,7 @@ if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
             vn_2d_c1 = (0.33 * np.sqrt(fc) * (criticos['bo1'] * 1000) * (d * 1000)) / 1000
             vn_2d_c2 = (0.33 * np.sqrt(fc) * (criticos['bo2'] * 1000) * (d * 1000)) / 1000
 
-                data_check = {
+            data_check = {
                     "Chequeo": ["Cortante 1D", f"Punzonamiento {g1['label']}", f"Punzonamiento {g2['label']}"],
                     "Demanda (Vu)": [f"{res_diseno['vu_1d_max']:.1f} kN", f"{res_diseno['vu_2d_c1_max']:.1f} kN", f"{res_diseno['vu_2d_c2_max']:.1f} kN"],
                     "Capacidad (φVn)": [f"{phi_v*vn_1d:.1f} kN", f"{phi_v*vn_2d_c1:.1f} kN", f"{phi_v*vn_2d_c1:.1f} kN"],
@@ -90,7 +90,7 @@ if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
                         "✅ OK" if res_diseno['vu_2d_c1_max'] < phi_v*vn_2d_c1 else "❌ FALLA",
                         "✅ OK" if res_diseno['vu_2d_c2_max'] < phi_v*vn_2d_c1 else "❌ FALLA"
                     ]
-                }
+            }
                 st.table(pd.DataFrame(data_check))
 
                 # C. Resultados Finales
