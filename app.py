@@ -118,6 +118,7 @@ if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
                 r2.metric("Ancho B", f"{B_optimo:.2f} m")
                 r3.metric("Espesor H", f"{H_calc:.2f} m")
         else:
-            st.error("Error en geometría de columnas.")
+            st.error(f"No encontré el nodo {nodos_sel} en la tabla de conectividad.")
+            st.write("Primeras filas de conectividad:", df_conn.head())
 else:
     st.warning("Cargue los archivos para comenzar.")
