@@ -63,7 +63,6 @@ if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
         combs_diseno = st.multiselect("Comb. de DISEÑO (Acero/Cortante):", df_r[col_comb].unique())
 
     if len(nodos_sel) == 2 and combs_servicio and combs_diseno:
-        # Obtener geometría real de columnas
         g1 = engine.obtener_geometria_columna(nodos_sel[0], df_conn, df_sum, df_sec)
         g2 = engine.obtener_geometria_columna(nodos_sel[1], df_conn, df_sum, df_sec)
 
@@ -82,32 +81,61 @@ if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
                 p1 = df_c[df_c[col_nodo_c].astype(str).str.replace('.0','',regex=False) == nodos_sel[0]][[col_x, col_y]].values[0]
                 p2 = df_c[df_c[col_nodo_c].astype(str).str.replace('.0','',regex=False) == nodos_sel[1]][[col_x, col_y]].values[0]
                 
-                if unit_c.get(col_x) == 'mm':
-                    p1 /= 1000.0
-                    p2 /= 1000.0
+                fact_m = 0.001 if unit_c.get(col_x) == 'mm' else 1.0
+                p1_m, p2_m = p1 * fact_m, p2 * fact_m
 
                 reac1 = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','',regex=False) == nodos_sel[0]) & (df_r[col_comb] == comb_ubicacion)].iloc[0].to_dict()
                 reac2 = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','',regex=False) == nodos_sel[1]) & (df_r[col_comb] == comb_ubicacion)].iloc[0].to_dict()
 
-                # B. Motor: Ubicación y Predimensionamiento
-                res_ub = engine.procesar_geometria_y_cargas(p1, p2, reac1, reac2)
+                # B. Motor: Geometría y Cargas de Control
+                res_ub = engine.procesar_geometria_y_cargas(p1_m, p2_m, reac1, reac2)
+                
+                # --- BLOQUE DE AUDITORÍA ---
+                st.markdown("---")
+                st.subheader("🔍 Bloque de Verificación (Auditoría)")
+                aud_1, aud_2 = st.columns(2)
+                with aud_1:
+                    st.write("**1. Geometría Básica**")
+                    st.info(f"Distancia entre ejes: **{res_ub['L_ejes']:.3f} m**")
+                    st.write(f"Col 1 ({g1['label']}): t3(long)={g1['t3']:.3f}m, t2={g1['t2']:.3f}m")
+                    st.write(f"Col 2 ({g2['label']}): t3(long)={g2['t3']:.3f}m, t2={g2['t2']:.3f}m")
+                with aud_2:
+                    st.write(f"**2. Reacciones (Comb: {comb_ubicacion})**")
+                    st.write(f"Nodo {nodos_sel[0]}: Fz={reac1[col_fz]:.1f}, Mx={reac1[col_mx]:.1f}, My={reac1[col_my]:.1f}")
+                    st.write(f"Nodo {nodos_sel[1]}: Fz={reac2[col_fz]:.1f}, Mx={reac2[col_mx]:.1f}, My={reac2[col_my]:.1f}")
+
+                # C. Centroide y Dimensionamiento
                 L_zapata = res_ub['x_resultante'] * 2
                 H_calc = res_ub['L_ejes'] / factor_h
                 q_neto = q_adm - (24.0 * H_calc)
+                B_fisico = max(g1['t2'], g2['t2']) + 0.20
+                B_optimo = engine.optimizar_ancho_B(L_zapata, res_ub['R_total'], res_ub['m_trans_total'], q_neto, B_fisico)
 
-                B_optimo = engine.optimizar_ancho_B(L_zapata, res_ub['R_total'], 0, q_neto, max(g1['t2'], g2['t2']) + 0.20)
-                
-                # D. Motor: Secciones Críticas
+                st.write("**3. Centroide y Dimensionamiento**")
+                c_a, c_b, c_c = st.columns(3)
+                c_a.metric("X Resultante (desde N1)", f"{res_ub['x_resultante']:.3f} m")
+                c_b.metric("L calculada (2*Xres)", f"{L_zapata:.3f} m")
+                c_c.metric("Ancho B (Final)", f"{B_optimo:.2f} m")
+
+                # D. Presiones de Servicio
+                st.write("**4. Verificación de Presiones (Servicio)**")
+                s_max, s_min = engine.calcular_presiones_4_esquinas(L_zapata, B_optimo, res_ub['R_total'], 0, res_ub['m_trans_total'])
+                pres_data = {
+                    "Punto": ["Esquina Max", "Esquina Min", "Admisible Neto"],
+                    "Presión (kN/m²)": [f"{s_max:.2f}", f"{s_min:.2f}", f"{q_neto:.2f}"],
+                    "Estado": ["✅" if s_max <= q_neto else "❌", "✅" if s_min >= 0 else "🚩 TRACCIÓN", "-"]
+                }
+                st.table(pres_data)
+
+                # E. Secciones Críticas y Cortante de Diseño
                 criticos = engine.calcular_secciones_criticas(res_ub['L_ejes'], g1, g2, H_calc, es_borde_1, es_borde_2)
                 d = criticos['d']
-
-                # E. Verificación de Combinaciones de DISEÑO
                 res_diseno = engine.analizar_combinaciones_diseno(
                     df_r, nodos_sel, combs_diseno, col_nodo_r, col_comb, col_fz, 
                     L_zapata, B_optimo, g1, g2, H_calc, es_borde_1, es_borde_2
                 )
 
-                # CAPACIDADES
+                st.write("**5. Verificación de Cortante (Diseño)**")
                 phi_v = 0.75
                 vn_1d = (0.17 * np.sqrt(fc) * (B_optimo * 1000) * (d * 1000)) / 1000
                 vn_2d_c1 = (0.33 * np.sqrt(fc) * (criticos['bo1'] * 1000) * (d * 1000)) / 1000
@@ -123,16 +151,9 @@ if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
                         "✅ OK" if res_diseno['vu_2d_c2_max'] < phi_v*vn_2d_c2 else "❌ FALLA"
                     ]
                 }
-                
-                st.table(pd.DataFrame(data_check))
-
-                # C. Resultados Finales
+                st.table(data_check)
                 st.success("### ✅ Diseño Finalizado")
-                r1, r2, r3 = st.columns(3)
-                r1.metric("Longitud L", f"{L_zapata:.2f} m")
-                r2.metric("Ancho B", f"{B_optimo:.2f} m")
-                r3.metric("Espesor H", f"{H_calc:.2f} m")
         else:
-            st.error(f"No pude encontrar la geometría para los nodos {nodos_sel}. Revisa que sean columnas.")
+            st.error("No se encontró geometría de columnas.")
 else:
     st.warning("Cargue los archivos para comenzar.")
