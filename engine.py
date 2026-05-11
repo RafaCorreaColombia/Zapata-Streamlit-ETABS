@@ -80,12 +80,25 @@ def procesar_geometria_y_cargas(p1, p2, reac1, reac2):
     }
 
 # --- 3. DISEÑO Y VERIFICACIONES ---
-def calcular_presiones_4_esquinas(L, B, P, M_long, M_trans):
-    A = L * B
-    Ix, Iy = (B * L**3) / 12, (L * B**3) / 12
-    esquinas = [(L/2, B/2), (L/2, -B/2), (-L/2, B/2), (-L/2, -B/2)]
-    presiones = [ (P/A) + (M_long * x / Ix) + (M_trans * y / Iy) for x, y in esquinas ]
-    return max(presiones), min(presiones)
+def calcular_secciones_criticas(dist_ejes, g1, g2, H, b1, b2):
+    d = H - 0.075
+    # Cara de columnas
+    c1 = g1['t3']/2
+    c2 = dist_ejes - (g2['t3']/2)
+    
+    def bo_calc(t3, t2, d_val, borde):
+        # Perímetro crítico a d/2
+        if borde:
+            return (2 * (t3 + d_val/2)) + (t2 + d_val)
+        return 2 * (t3 + d_val) + 2 * (t2 + d_val)
+
+    return {
+        'd': d,
+        'bo1': bo_calc(g1['t3'], g1['t2'], d, b1),
+        'bo2': bo_calc(g2['t3'], g2['t2'], d, b2),
+        'xv1': c1 + d,
+        'xv2': c2 - d
+    }
 
 def optimizar_ancho_B(L, P_total, M_trans, q_neto, B_min_fisico):
     B = B_min_fisico
