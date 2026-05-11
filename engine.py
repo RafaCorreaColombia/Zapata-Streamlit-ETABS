@@ -121,19 +121,46 @@ def calcular_secciones_criticas(dist_ejes, g1, g2, H, b1, b2):
 def analizar_combinaciones_diseno(df_r, nodos, combs, col_nodo, col_comb, col_fz, L, B, g1, g2, H, b1, b2):
     res = {'vu_1d_max': 0, 'vu_2d_c1_max': 0, 'vu_2d_c2_max': 0, 'comb_critica_1d': '', 'comb_critica_2d': ''}
     d = H - 0.075
+    
+    # NORMALIZACIÓN: Aseguramos que la columna de nodos en el DataFrame sea string sin .0
+    df_temp = df_r.copy()
+    df_temp[col_nodo] = df_temp[col_nodo].astype(str).str.replace('.0', '', regex=False).str.strip()
+    
+    # Aseguramos que los IDs que buscamos también sean strings limpios
+    n1_id = str(nodos[0]).replace('.0', '').strip()
+    n2_id = str(nodos[1]).replace('.0', '').strip()
+
     for c in combs:
-        r1 = df_r[(df_r[col_nodo] == nodos[0]) & (df_r[col_comb] == c)].iloc[0]
-        r2 = df_r[(df_r[col_nodo] == nodos[1]) & (df_r[col_comb] == c)].iloc[0]
-        qu = (r1[col_fz] + r2[col_fz]) / (L * B)
+        # Buscamos en el dataframe temporal normalizado
+        filtro1 = df_temp[(df_temp[col_nodo] == n1_id) & (df_temp[col_comb] == c)]
+        filtro2 = df_temp[(df_temp[col_nodo] == n2_id) & (df_temp[col_comb] == c)]
+        
+        # Verificamos que existan datos antes de usar .iloc[0]
+        if filtro1.empty or filtro2.empty:
+            continue # Si no hay datos para esta comb, saltamos a la siguiente
+            
+        r1 = filtro1.iloc[0]
+        r2 = filtro2.iloc[0]
+        
+        qu = (abs(r1[col_fz]) + abs(r2[col_fz])) / (L * B)
+        
+        # Vu 1D simplificado (a distancia d de la cara)
         v1d = abs(qu * B * ( (L/2) - (g1['t3']/2) - d ))
         
-        a1 = (g1['t3']+d)*(g1['t2']+d) if not b1 else (g1['t3']+d/2)*(g1['t2']+d)
-        a2 = (g2['t3']+d)*(g2['t2']+d) if not b2 else (g2['t3']+d/2)*(g2['t2']+d)
-        v2d1, v2d2 = r1[col_fz] - (qu * a1), r2[col_fz] - (qu * a2)
+        # Punzonamiento
+        area1 = (g1['t3']+d)*(g1['t2']+d) if not b1 else (g1['t3']+d/2)*(g1['t2']+d)
+        area2 = (g2['t3']+d)*(g2['t2']+d) if not b2 else (g2['t3']+d/2)*(g2['t2']+d)
+        
+        v2d1 = abs(r1[col_fz]) - (qu * area1)
+        v2d2 = abs(r2[col_fz]) - (qu * area2)
 
-        if v1d > res['vu_1d_max']: res['vu_1d_max'], res['comb_critica_1d'] = v1d, c
-        if max(v2d1, v2d2) > max(res['vu_2d_c1_max'], res['vu_2d_c2_max']):
+        if v1d > res['vu_1d_max']:
+            res['vu_1d_max'], res['comb_critica_1d'] = v1d, c
+        
+        v2d_local_max = max(v2d1, v2d2)
+        if v2d_local_max > max(res['vu_2d_c1_max'], res['vu_2d_c2_max']):
             res['vu_2d_c1_max'], res['vu_2d_c2_max'], res['comb_critica_2d'] = v2d1, v2d2, c
+            
     return res
 
 def diseno_refuerzo(Mu, d, B, fc, fy=420):
