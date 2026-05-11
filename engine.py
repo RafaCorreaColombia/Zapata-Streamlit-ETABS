@@ -23,27 +23,39 @@ def procesar_csv_etabs(file):
 
 def obtener_geometria_columna(nodo_id, df_conn, df_sum, df_sec):
     try:
-        # Forzar a string para evitar errores de tipo (14 vs "14")
-        nid = str(nodo_id)
-        df_conn['I-End Point'] = df_conn['I-End Point'].astype(str)
-        df_conn['J-End Point'] = df_conn['J-End Point'].astype(str)
+        # 1. Limpiar el ID del nodo: De 3.0 (float) -> 3 (int) -> "3" (str)
+        # Esto elimina el ".0" que genera el error de búsqueda
+        nid = str(int(float(nodo_id))) 
 
-        # Buscar el nodo en la conectividad
+        # 2. Limpiar la tabla de conectividad (I-End y J-End)
+        # Convertimos a float primero, luego a int y luego a str para asegurar formato "3"
+        for col_name in ['I-End Point', 'J-End Point']:
+            df_conn[col_name] = pd.to_numeric(df_conn[col_name], errors='coerce').fillna(0).astype(int).astype(str)
+
+        # 3. Buscar el nodo en la conectividad
         row_conn = df_conn[(df_conn['I-End Point'] == nid) | (df_conn['J-End Point'] == nid)]
-        if row_conn.empty: return None
         
-        col_label = row_conn['Column'].values[0]
+        if row_conn.empty:
+            return None
+        
+        col_label = str(row_conn['Column'].values[0]).strip()
+        
+        # 4. Buscar en Summary (limpiando espacios)
+        df_sum['Label'] = df_sum['Label'].astype(str).str.strip()
         row_sum = df_sum[df_sum['Label'] == col_label].iloc[0]
-        nombre_seccion = row_sum['Analysis Section']
+        nombre_seccion = str(row_sum['Analysis Section']).strip()
         
+        # 5. Buscar en Sections (limpiando espacios)
+        df_sec['Name'] = df_sec['Name'].astype(str).str.strip()
         row_sec = df_sec[df_sec['Name'] == nombre_seccion].iloc[0]
+        
         return {
             'label': col_label,
             'seccion': nombre_seccion,
-            't3': row_sec['t3'] / 1000, 
-            't2': row_sec['t2'] / 1000  
+            't3': row_sec['t3'] / 1000, # m
+            't2': row_sec['t2'] / 1000  # m
         }
-    except:
+    except Exception as e:
         return None
 
 # --- 2. TRANSFORMACIÓN Y GEOMETRÍA ---
