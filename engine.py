@@ -10,7 +10,11 @@ def procesar_csv_etabs(file):
     df = df.drop(0).reset_index(drop=True)
     df.columns = df.columns.str.strip()
     for col in df.columns:
-        df[col] = pd.to_numeric(df[col], errors='ignore')
+        try:
+            # Intentamos convertir, si falla (porque es texto), se queda igual
+            df[col] = pd.to_numeric(df[col])
+        except (ValueError, TypeError):
+            continue
     return df, unidades
 
 def obtener_geometria_columna(nodo_id, df_conn, df_sum, df_sec):
