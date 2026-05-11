@@ -56,8 +56,9 @@ if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
         combs_sel = st.multiselect("Combinaciones de Diseño/Servicio:", df_r[col_comb].unique())
 
     if len(nodos_sel) == 2 and combs_sel:
-        g1 = engine.obtener_geometria_columna(nodos_sel[0], df_conn, df_sum, df_sec)
-        g2 = engine.obtener_geometria_columna(nodos_sel[1], df_conn, df_sum, df_sec)
+        # --- Dentro del bloque 'if len(nodos_sel) == 2' en app.py ---
+        g1 = engine.obtener_geometria_columna(nodos_sel[0], df_conn, df_sum, df_sec) # Procesa el Nodo 3
+        g2 = engine.obtener_geometria_columna(nodos_sel[1], df_conn, df_sum, df_sec) # Procesa el Nodo 4
 
         if g1 and g2:
             st.info(f"Columnas detectadas: {g1['label']} ({g1['seccion']}) y {g2['label']} ({g2['seccion']})")
