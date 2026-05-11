@@ -23,42 +23,65 @@ def procesar_csv_etabs(file):
 
 def obtener_geometria_columna(nodo_id, df_conn, df_sum, df_sec):
     try:
-        # 1. Limpiar el ID del nodo: De 3.0 (float) -> 3 (int) -> "3" (str)
-        # Esto elimina el ".0" que genera el error de búsqueda
         nid = str(int(float(nodo_id))) 
-
-        # 2. Limpiar la tabla de conectividad (I-End y J-End)
-        # Convertimos a float primero, luego a int y luego a str para asegurar formato "3"
         for col_name in ['I-End Point', 'J-End Point']:
             df_conn[col_name] = pd.to_numeric(df_conn[col_name], errors='coerce').fillna(0).astype(int).astype(str)
 
-        # 3. Buscar el nodo en la conectividad
         row_conn = df_conn[(df_conn['I-End Point'] == nid) | (df_conn['J-End Point'] == nid)]
-        
-        if row_conn.empty:
-            return None
+        if row_conn.empty: return None
         
         col_label = str(row_conn['Column'].values[0]).strip()
-        
-        # 4. Buscar en Summary (limpiando espacios)
         df_sum['Label'] = df_sum['Label'].astype(str).str.strip()
         row_sum = df_sum[df_sum['Label'] == col_label].iloc[0]
         nombre_seccion = str(row_sum['Analysis Section']).strip()
         
-        # 5. Buscar en Sections (limpiando espacios)
         df_sec['Name'] = df_sec['Name'].astype(str).str.strip()
         row_sec = df_sec[df_sec['Name'] == nombre_seccion].iloc[0]
         
         return {
             'label': col_label,
             'seccion': nombre_seccion,
-            't3': row_sec['t3'] / 1000, # m
-            't2': row_sec['t2'] / 1000  # m
+            't3': row_sec['t3'] / 1000, 
+            't2': row_sec['t2'] / 1000  
         }
-    except Exception as e:
+    except:
         return None
 
-# --- 2. TRANSFORMACIÓN Y GEOMETRÍA ---
+# --- 2. LÓGICA DE PRESIONES Y ESTABILIDAD ---
+
+def calcular_presiones_4_esquinas(L, B, P, M_long, M_trans):
+    """Calcula presiones en las 4 esquinas de la zapata."""
+    if L <= 0 or B <= 0: return 0.0, 0.0
+    A = L * B
+    # Inercias locales
+    Ix = (B * L**3) / 12
+    Iy = (L * B**3) / 12
+    
+    # Esquinas relativas al centroide (x es eje largo L, y es eje corto B)
+    esquinas = [(L/2, B/2), (L/2, -B/2), (-L/2, B/2), (-L/2, -B/2)]
+    presiones = []
+    for x, y in esquinas:
+        # Sumamos efectos absolutos para s_max
+        s = (abs(P)/A) + (abs(M_long) * abs(x) / Ix) + (abs(M_trans) * abs(y) / Iy)
+        presiones.append(s)
+        
+    # s_min aproximado para chequeo de tracción
+    s_min = (abs(P)/A) - (abs(M_long) * (L/2) / Ix) - (abs(M_trans) * (B/2) / Iy)
+    
+    return max(presiones), s_min
+
+def optimizar_ancho_B(L, P_total, M_trans, q_neto, B_min_fisico):
+    """Busca el ancho B mínimo que cumpla presiones sin tracción."""
+    B = B_min_fisico
+    while B < 10.0:
+        s_max, s_min = calcular_presiones_4_esquinas(L, B, P_total, 0, M_trans)
+        if s_max <= q_neto and s_min >= 0:
+            return round(B, 2)
+        B += 0.05
+    return round(B, 2)
+
+# --- 3. TRANSFORMACIÓN Y GEOMETRÍA ---
+
 def rotar_momentos(mx_global, my_global, angle):
     m_long = mx_global * np.cos(angle) + my_global * np.sin(angle)
     m_trans = -mx_global * np.sin(angle) + my_global * np.cos(angle)
@@ -72,95 +95,57 @@ def procesar_geometria_y_cargas(p1, p2, reac1, reac2):
     ml_1, mt_1 = rotar_momentos(reac1['MX'], reac1['MY'], alpha)
     ml_2, mt_2 = rotar_momentos(reac2['MX'], reac2['MY'], alpha)
     
-    R = reac1['FZ'] + reac2['FZ']
-    x_res = (reac2['FZ'] * L_ejes + mt_1 + mt_2) / R
+    # Compresión positiva
+    R = abs(reac1['FZ']) + abs(reac2['FZ'])
+    # Centroide de cargas desde p1
+    x_res = (abs(reac2['FZ']) * L_ejes + ml_1 + ml_2) / R
+    
     return {
-        'L_ejes': L_ejes, 'R_total': R, 'x_resultante': x_res,
-        'alpha': alpha, 'm_trans_total': ml_1 + ml_2 
+        'L_ejes': L_ejes, 
+        'R_total': R, 
+        'x_resultante': x_res,
+        'alpha': alpha, 
+        'm_trans_total': mt_1 + mt_2 
     }
 
-# --- 3. DISEÑO Y VERIFICACIONES ---
+# --- 4. VERIFICACIONES DE DISEÑO ---
+
 def calcular_secciones_criticas(dist_ejes, g1, g2, H, b1, b2):
     d = H - 0.075
-    # Cara de columnas
-    c1 = g1['t3']/2
-    c2 = dist_ejes - (g2['t3']/2)
-    
     def bo_calc(t3, t2, d_val, borde):
-        # Perímetro crítico a d/2
-        if borde:
-            return (2 * (t3 + d_val/2)) + (t2 + d_val)
-        return 2 * (t3 + d_val) + 2 * (t2 + d_val)
-
+        if borde: return (2*(t3 + d_val/2)) + (t2 + d_val)
+        return 2*(t3 + d_val) + 2*(t2 + d_val)
+    
     return {
         'd': d,
         'bo1': bo_calc(g1['t3'], g1['t2'], d, b1),
-        'bo2': bo_calc(g2['t3'], g2['t2'], d, b2),
-        'xv1': c1 + d,
-        'xv2': c2 - d
-    }
-
-def optimizar_ancho_B(L, P_total, M_trans, q_neto, B_min_fisico):
-    B = B_min_fisico
-    while B < 10.0:
-        s_max, s_min = calcular_presiones_4_esquinas(L, B, P_total, 0, M_trans)
-        if s_max <= q_neto and s_min >= 0:
-            return round(B, 2)
-        B += 0.05
-    return B
-
-def calcular_secciones_criticas(dist_ejes, g1, g2, H, b1, b2):
-    d = H - 0.075
-    def bo_calc(t3, t2, d_val, borde):
-        return (2*(t3+d_val) + t2+d_val) if borde else 2*(t3+d_val + t2+d_val)
-    return {
-        'd': d, 'bo1': bo_calc(g1['t3'], g1['t2'], d, b1),
         'bo2': bo_calc(g2['t3'], g2['t2'], d, b2)
     }
 
 def analizar_combinaciones_diseno(df_r, nodos, combs, col_nodo, col_comb, col_fz, L, B, g1, g2, H, b1, b2):
-    res = {'vu_1d_max': 0, 'vu_2d_c1_max': 0, 'vu_2d_c2_max': 0, 'comb_critica_1d': '', 'comb_critica_2d': ''}
+    res = {'vu_1d_max': 0.0, 'vu_2d_c1_max': 0.0, 'vu_2d_c2_max': 0.0, 'comb_critica_1d': '', 'comb_critica_2d': ''}
     d = H - 0.075
-    
-    # NORMALIZACIÓN: Aseguramos que la columna de nodos en el DataFrame sea string sin .0
     df_temp = df_r.copy()
     df_temp[col_nodo] = df_temp[col_nodo].astype(str).str.replace('.0', '', regex=False).str.strip()
-    
-    # Aseguramos que los IDs que buscamos también sean strings limpios
-    n1_id = str(nodos[0]).replace('.0', '').strip()
-    n2_id = str(nodos[1]).replace('.0', '').strip()
+    n1_id, n2_id = str(nodos[0]).replace('.0', ''), str(nodos[1]).replace('.0', '')
 
     for c in combs:
-        # Buscamos en el dataframe temporal normalizado
-        filtro1 = df_temp[(df_temp[col_nodo] == n1_id) & (df_temp[col_comb] == c)]
-        filtro2 = df_temp[(df_temp[col_nodo] == n2_id) & (df_temp[col_comb] == c)]
-        
-        # Verificamos que existan datos antes de usar .iloc[0]
-        if filtro1.empty or filtro2.empty:
-            continue # Si no hay datos para esta comb, saltamos a la siguiente
+        f1 = df_temp[(df_temp[col_nodo] == n1_id) & (df_temp[col_comb] == c)]
+        f2 = df_temp[(df_temp[col_nodo] == n2_id) & (df_temp[col_comb] == c)]
+        if f1.empty or f2.empty: continue
             
-        r1 = filtro1.iloc[0]
-        r2 = filtro2.iloc[0]
-        
+        r1, r2 = f1.iloc[0], f2.iloc[0]
         qu = (abs(r1[col_fz]) + abs(r2[col_fz])) / (L * B)
-        
-        # Vu 1D simplificado (a distancia d de la cara)
         v1d = abs(qu * B * ( (L/2) - (g1['t3']/2) - d ))
         
-        # Punzonamiento
-        area1 = (g1['t3']+d)*(g1['t2']+d) if not b1 else (g1['t3']+d/2)*(g1['t2']+d)
-        area2 = (g2['t3']+d)*(g2['t2']+d) if not b2 else (g2['t3']+d/2)*(g2['t2']+d)
-        
-        v2d1 = abs(r1[col_fz]) - (qu * area1)
-        v2d2 = abs(r2[col_fz]) - (qu * area2)
+        a1 = (g1['t3']+d)*(g1['t2']+d) if not b1 else (g1['t3']+d/2)*(g1['t2']+d)
+        a2 = (g2['t3']+d)*(g2['t2']+d) if not b2 else (g2['t3']+d/2)*(g2['t2']+d)
+        v2d1, v2d2 = abs(r1[col_fz]) - (qu * a1), abs(r2[col_fz]) - (qu * a2)
 
         if v1d > res['vu_1d_max']:
             res['vu_1d_max'], res['comb_critica_1d'] = v1d, c
-        
-        v2d_local_max = max(v2d1, v2d2)
-        if v2d_local_max > max(res['vu_2d_c1_max'], res['vu_2d_c2_max']):
+        if max(v2d1, v2d2) > max(res['vu_2d_c1_max'], res['vu_2d_c2_max']):
             res['vu_2d_c1_max'], res['vu_2d_c2_max'], res['comb_critica_2d'] = v2d1, v2d2, c
-            
     return res
 
 def diseno_refuerzo(Mu, d, B, fc, fy=420):
