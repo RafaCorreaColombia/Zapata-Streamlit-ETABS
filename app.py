@@ -18,6 +18,7 @@ def encontrar_columna(lista_columnas, keywords):
 # --- SIDEBAR: PARÁMETROS Y CARGA ---
 st.sidebar.header("1. Configuración Geotécnica")
 q_adm = st.sidebar.number_input("Esfuerzo Admisible (kN/m²)", value=250.0)
+fc = st.sidebar.selectbox("f'c Concreto (MPa)", [21, 28, 35], index=1)
 factor_h = st.sidebar.slider("Relación H vs Distancia Ejes (1/X)", 8, 15, 10)
 
 st.sidebar.header("2. Carga de Archivos ETABS")
@@ -30,35 +31,19 @@ with st.sidebar:
 
 # --- LÓGICA PRINCIPAL ---
 if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
-if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
-    # Procesar todos con el mismo motor adaptativo
+    # Procesar archivos
     df_r, unit_r = engine.procesar_csv_etabs(file_reacciones)
     df_c, unit_c = engine.procesar_csv_etabs(file_coords)
     df_conn, _ = engine.procesar_csv_etabs(file_conn)
     df_sum, _ = engine.procesar_csv_etabs(file_sum)
     df_sec, _ = engine.procesar_csv_etabs(file_sec)
 
-    # --- NUEVOS MAPEOS DIFUSOS ---
-    # Para Conectividad
-    col_conn_col = encontrar_columna(df_conn.columns, ['column', 'label', 'line'])
-    col_conn_node = encontrar_columna(df_conn.columns, ['i-end', 'joint', 'node'])
-
-    # Para Secciones
-    col_sec_name = encontrar_columna(df_sec.columns, ['name', 'section', 'prop'])
-    col_sec_t3 = encontrar_columna(df_sec.columns, ['t3', 'depth', 'height'])
-    col_sec_t2 = encontrar_columna(df_sec.columns, ['t2', 'width'])
-    
-    # Para Resumen (Summary)
-    col_sum_col = encontrar_columna(df_sum.columns, ['label', 'column'])
-    col_sum_sec = encontrar_columna(df_sum.columns, ['analysis', 'section', 'property'])
-
-    # Identificación automática de columnas críticas
+    # Mapeos de columnas
     col_nodo_r = encontrar_columna(df_r.columns, ['label', 'node', 'joint'])
     col_comb = encontrar_columna(df_r.columns, ['combo', 'case', 'load'])
     col_fz = encontrar_columna(df_r.columns, ['fz', 'vertical', 'p '])
     col_mx = encontrar_columna(df_r.columns, ['mx'])
     col_my = encontrar_columna(df_r.columns, ['my'])
-
     col_nodo_c = encontrar_columna(df_c.columns, ['label', 'node', 'joint'])
     col_x = encontrar_columna(df_c.columns, ['x'])
     col_y = encontrar_columna(df_c.columns, ['y'])
@@ -68,10 +53,9 @@ if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
     with c1:
         nodos_sel = st.multiselect("Nodos de las 2 columnas:", df_c[col_nodo_c].unique(), max_selections=2)
     with c2:
-        combs_sel = st.multiselect("Combinaciones de Servicio:", df_r[col_comb].unique())
+        combs_sel = st.multiselect("Combinaciones de Diseño/Servicio:", df_r[col_comb].unique())
 
     if len(nodos_sel) == 2 and combs_sel:
-        # Obtener datos de geometría de columnas desde el motor
         g1 = engine.obtener_geometria_columna(nodos_sel[0], df_conn, df_sum, df_sec)
         g2 = engine.obtener_geometria_columna(nodos_sel[1], df_conn, df_sum, df_sec)
 
@@ -82,96 +66,58 @@ if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
             col_b1, col_b2 = st.columns(2)
             es_borde_1 = col_b1.checkbox(f"Columna {nodos_sel[0]} es de borde (Límite Izq)")
             es_borde_2 = col_b2.checkbox(f"Columna {nodos_sel[1]} es de borde (Límite Der)")
-
             comb_ubicacion = st.selectbox("Seleccione combinación D+L para centrar zapata:", combs_sel)
 
-            # --- BOTÓN DE CÁLCULO ---
             if st.button("🚀 Ejecutar Diseño Completo"):
-                # A. Preparar coordenadas y reacciones
+                # A. Geometría y Cargas
                 p1 = df_c[df_c[col_nodo_c] == nodos_sel[0]][[col_x, col_y]].values[0]
                 p2 = df_c[df_c[col_nodo_c] == nodos_sel[1]][[col_x, col_y]].values[0]
-                
-                # Pasar coordenadas a metros si vienen en mm
                 if unit_c.get(col_x) == 'mm':
-                    p1 = p1 / 1000.0
-                    p2 = p2 / 1000.0
+                    p1 /= 1000.0
+                    p2 /= 1000.0
 
                 reac1 = df_r[(df_r[col_nodo_r] == nodos_sel[0]) & (df_r[col_comb] == comb_ubicacion)].iloc[0].to_dict()
                 reac2 = df_r[(df_r[col_nodo_r] == nodos_sel[1]) & (df_r[col_comb] == comb_ubicacion)].iloc[0].to_dict()
 
-                # B. Motor: Ubicación y Predimensionamiento
                 res_ub = engine.procesar_geometria_y_cargas(p1, p2, reac1, reac2)
-                
-                L_ejes = res_ub['L_ejes']
-                dist_res = res_ub['x_resultante']
-                
-                # Definir longitud L para que quede centrada
-                # (OJO: Aquí puedes meter lógica de borde para ajustar L)
-                L_zapata = dist_res * 2
-                H_calc = L_ejes / factor_h
+                L_zapata = res_ub['x_resultante'] * 2
+                H_calc = res_ub['L_ejes'] / factor_h
                 q_neto = q_adm - (24.0 * H_calc)
 
-                # C. Motor: Optimizar Ancho B (usando la carga total de servicio R_total)
-                B_optimo = engine.optimizar_ancho_B(
-                    L_zapata, 
-                    res_ub['R_total'], 
-                    0, # Momento transversal asumiendo 0 por ahora
-                    q_neto, 
-                    max(g1['t2'], g2['t2']) + 0.20 # Ancho mínimo físico + margen
+                B_optimo = engine.optimizar_ancho_B(L_zapata, res_ub['R_total'], 0, q_neto, max(g1['t2'], g2['t2']) + 0.20)
+                criticos = engine.calcular_secciones_criticas(res_ub['L_ejes'], g1, g2, H_calc, es_borde_1, es_borde_2)
+                d = criticos['d']
+
+                # B. Verificación de Combinaciones
+                st.subheader("🛡️ Verificación de Cortante (Peor Caso)")
+                res_diseno = engine.analizar_combinaciones_diseno(
+                    df_r, nodos_sel, combs_sel, col_nodo_r, col_comb, col_fz, 
+                    L_zapata, B_optimo, g1, g2, H_calc, es_borde_1, es_borde_2
                 )
 
-                # D. Motor: Secciones Críticas
-                criticos = engine.calcular_secciones_criticas(L_ejes, g1, g2, H_calc, es_borde_1, es_borde_2)
+                phi_v = 0.75
+                vn_1d = (0.17 * 1.0 * np.sqrt(fc) * (B_optimo * 1000) * (d * 1000)) / 1000
+                vn_2d_c1 = (0.33 * 1.0 * np.sqrt(fc) * (criticos['bo_1'] * 1000) * (d * 1000)) / 1000
 
-                # --- En app.py, dentro del botón de diseño ---
+                data_check = {
+                    "Chequeo": ["Cortante 1D", f"Punzonamiento {g1['label']}", f"Punzonamiento {g2['label']}"],
+                    "Demanda (Vu)": [f"{res_diseno['vu_1d_max']:.1f} kN", f"{res_diseno['vu_2d_c1_max']:.1f} kN", f"{res_diseno['vu_2d_c2_max']:.1f} kN"],
+                    "Capacidad (φVn)": [f"{phi_v*vn_1d:.1f} kN", f"{phi_v*vn_2d_c1:.1f} kN", f"{phi_v*vn_2d_c1:.1f} kN"],
+                    "Estado": [
+                        "✅ OK" if res_diseno['vu_1d_max'] < phi_v*vn_1d else "❌ FALLA",
+                        "✅ OK" if res_diseno['vu_2d_c1_max'] < phi_v*vn_2d_c1 else "❌ FALLA",
+                        "✅ OK" if res_diseno['vu_2d_c2_max'] < phi_v*vn_2d_c1 else "❌ FALLA"
+                    ]
+                }
+                st.table(pd.DataFrame(data_check))
 
-st.subheader("🛡️ Verificación de Cortante (Peor Caso de Diseño)")
-
-# Ejecutar el bucle de todas las combinaciones de diseño
-res_diseno = engine.analizar_combinaciones_diseno(
-    df_r, nodos_sel, combs_sel, col_nodo_r, col_comb, col_fz, 
-    L_zapata, B_optimo, g1, g2, H_calc, es_borde_1, es_borde_2
-)
-
-# Capacidades Nominales (Phi * Vn)
-phi_v = 0.75
-lambda_c = 1.0
-vn_1d = (0.17 * lambda_c * np.sqrt(fc) * (B_optimo * 1000) * (d * 1000)) / 1000 # kN
-
-# Punzonamiento (La más restrictiva de las 3 fórmulas ACI)
-vn_2d_c1 = (0.33 * lambda_c * np.sqrt(fc) * (criticos['bo_1'] * 1000) * (d * 1000)) / 1000 # kN
-
-# Crear Tabla de Resultados
-data_check = {
-    "Chequeo": ["Cortante 1D", f"Punzonamiento {g1['label']}", f"Punzonamiento {g2['label']}"],
-    "Demanda (Vu)": [f"{res_diseno['vu_1d_max']:.1f} kN", f"{res_diseno['vu_2d_c1_max']:.1f} kN", f"{res_diseno['vu_2d_c2_max']:.1f} kN"],
-    "Capacidad (φVn)": [f"{phi_v*vn_1d:.1f} kN", f"{phi_v*vn_2d_c1:.1f} kN", f"{phi_v*vn_2d_c1:.1f} kN"],
-    "Estado": [
-        "✅ OK" if res_diseno['vu_1d_max'] < phi_v*vn_1d else "❌ FALLA",
-        "✅ OK" if res_diseno['vu_2d_c1_max'] < phi_v*vn_2d_c1 else "❌ FALLA",
-        "✅ OK" if res_diseno['vu_2d_c2_max'] < phi_v*vn_2d_c1 else "❌ FALLA"
-    ]
-}
-
-st.table(pd.DataFrame(data_check))
-st.caption(f"Combinación crítica para 1D: {res_diseno['comb_critica_1d']}")
-st.caption(f"Combinación crítica para Punzonamiento: {res_diseno['comb_critica_2d']}")
-
-                
-
-                # E. RESULTADOS EN PANTALLA
+                # C. Resultados Finales
                 st.success("### ✅ Diseño Finalizado")
-                res1, res2, res3 = st.columns(3)
-                res1.metric("Longitud L", f"{L_zapata:.2f} m")
-                res2.metric("Ancho B", f"{B_optimo:.2f} m")
-                res3.metric("Espesor H", f"{H_calc:.2f} m")
-
-                with st.expander("Ver Detalles de Verificación"):
-                    st.write(f"**Carga Total (Servicio):** {res_ub['R_total']:.2f} kN")
-                    st.write(f"**Peralte Efectivo d:** {criticos['d']:.3f} m")
-                    st.write(f"**Bo Columna 1:** {criticos['bo_1']:.2f} m")
-                    st.write(f"**Bo Columna 2:** {criticos['bo_2']:.2f} m")
+                r1, r2, r3 = st.columns(3)
+                r1.metric("Longitud L", f"{L_zapata:.2f} m")
+                r2.metric("Ancho B", f"{B_optimo:.2f} m")
+                r3.metric("Espesor H", f"{H_calc:.2f} m")
         else:
-            st.error("No se pudo encontrar la geometría de las columnas. Verifique los archivos de Conectividad y Resumen.")
+            st.error("Error en geometría de columnas.")
 else:
-    st.warning("Por favor, cargue los 5 archivos de ETABS en el panel izquierdo para comenzar.")
+    st.warning("Cargue los archivos para comenzar.")
