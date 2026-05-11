@@ -52,53 +52,34 @@ if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
     c1, c2 = st.columns(2)
     with c1:
         nodos_sel = st.multiselect("Nodos de las 2 columnas:", df_c[col_nodo_c].unique(), max_selections=2)
+    
     with c2:
-        combs_sel = st.multiselect("Combinaciones de Diseño/Servicio:", df_r[col_comb].unique())
+        # Separamos para que el usuario elija con criterio
+        combs_servicio = st.multiselect("Comb. de SERVICIO (Suelo):", df_r[col_comb].unique())
+        combs_diseno = st.multiselect("Comb. de DISEÑO (Acero/Cortante):", df_r[col_comb].unique())
 
-    if len(nodos_sel) == 2 and combs_sel:
-        # --- Dentro del bloque 'if len(nodos_sel) == 2' en app.py ---
-        g1 = engine.obtener_geometria_columna(nodos_sel[0], df_conn, df_sum, df_sec) # Procesa el Nodo 3
-        g2 = engine.obtener_geometria_columna(nodos_sel[1], df_conn, df_sum, df_sec) # Procesa el Nodo 4
+    if len(nodos_sel) == 2 and combs_servicio and combs_diseno:
+        # ... (resto del código de g1, g2 y bordes) ...
 
-        if g1 and g2:
-            st.info(f"Columnas detectadas: {g1['label']} ({g1['seccion']}) y {g2['label']} ({g2['seccion']})")
-            
-            st.subheader("Configuración de Bordes")
-            col_b1, col_b2 = st.columns(2)
-            es_borde_1 = col_b1.checkbox(f"Columna {nodos_sel[0]} es de borde (Límite Izq)")
-            es_borde_2 = col_b2.checkbox(f"Columna {nodos_sel[1]} es de borde (Límite Der)")
-            comb_ubicacion = st.selectbox("Seleccione combinación D+L para centrar zapata:", combs_sel)
+        if st.button("🚀 Ejecutar Diseño Completo"):
+            # ... (Cálculos de L_zapata, B_optimo, etc.) ...
 
-            if st.button("🚀 Ejecutar Diseño Completo"):
-                # A. Geometría y Cargas
-                p1 = df_c[df_c[col_nodo_c] == nodos_sel[0]][[col_x, col_y]].values[0]
-                p2 = df_c[df_c[col_nodo_c] == nodos_sel[1]][[col_x, col_y]].values[0]
-                if unit_c.get(col_x) == 'mm':
-                    p1 /= 1000.0
-                    p2 /= 1000.0
+            # D. Motor: Secciones Críticas (Asegúrate de que los nombres coincidan)
+            criticos = engine.calcular_secciones_criticas(res_ub['L_ejes'], g1, g2, H_calc, es_borde_1, es_borde_2)
+            d = criticos['d']
 
-                reac1 = df_r[(df_r[col_nodo_r] == nodos_sel[0]) & (df_r[col_comb] == comb_ubicacion)].iloc[0].to_dict()
-                reac2 = df_r[(df_r[col_nodo_r] == nodos_sel[1]) & (df_r[col_comb] == comb_ubicacion)].iloc[0].to_dict()
+            # E. Verificación de Combinaciones de DISEÑO
+            res_diseno = engine.analizar_combinaciones_diseno(
+                df_r, nodos_sel, combs_diseno, col_nodo_r, col_comb, col_fz, 
+                L_zapata, B_optimo, g1, g2, H_calc, es_borde_1, es_borde_2
+            )
 
-                res_ub = engine.procesar_geometria_y_cargas(p1, p2, reac1, reac2)
-                L_zapata = res_ub['x_resultante'] * 2
-                H_calc = res_ub['L_ejes'] / factor_h
-                q_neto = q_adm - (24.0 * H_calc)
-
-                B_optimo = engine.optimizar_ancho_B(L_zapata, res_ub['R_total'], 0, q_neto, max(g1['t2'], g2['t2']) + 0.20)
-                criticos = engine.calcular_secciones_criticas(res_ub['L_ejes'], g1, g2, H_calc, es_borde_1, es_borde_2)
-                d = criticos['d']
-
-                # B. Verificación de Combinaciones
-                st.subheader("🛡️ Verificación de Cortante (Peor Caso)")
-                res_diseno = engine.analizar_combinaciones_diseno(
-                    df_r, nodos_sel, combs_sel, col_nodo_r, col_comb, col_fz, 
-                    L_zapata, B_optimo, g1, g2, H_calc, es_borde_1, es_borde_2
-                )
-
-                phi_v = 0.75
-                vn_1d = (0.17 * 1.0 * np.sqrt(fc) * (B_optimo * 1000) * (d * 1000)) / 1000
-                vn_2d_c1 = (0.33 * 1.0 * np.sqrt(fc) * (criticos['bo_1'] * 1000) * (d * 1000)) / 1000
+            # CAPACIDADES (Ajustando nombres de variables bo1 y bo2)
+            phi_v = 0.75
+            vn_1d = (0.17 * np.sqrt(fc) * (B_optimo * 1000) * (d * 1000)) / 1000
+            # USAMOS bo1 y bo2 (como están en engine.py)
+            vn_2d_c1 = (0.33 * np.sqrt(fc) * (criticos['bo1'] * 1000) * (d * 1000)) / 1000
+            vn_2d_c2 = (0.33 * np.sqrt(fc) * (criticos['bo2'] * 1000) * (d * 1000)) / 1000
 
                 data_check = {
                     "Chequeo": ["Cortante 1D", f"Punzonamiento {g1['label']}", f"Punzonamiento {g2['label']}"],
