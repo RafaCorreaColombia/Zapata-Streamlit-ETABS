@@ -4,17 +4,33 @@ import numpy as np
 # --- 1. PROCESAMIENTO DE DATOS ---
 
 def procesar_csv_etabs(file):
-    df = pd.read_csv(file, skiprows=1)
+    """
+    Lector universal para cualquier tabla de ETABS.
+    Maneja errores de codificación (UnicodeDecodeError).
+    """
+    try:
+        # Primero intentamos con la codificación estándar UTF-8
+        df = pd.read_csv(file, skiprows=1)
+    except UnicodeDecodeError:
+        # Si falla, retrocedemos a 'latin-1' que es común en archivos de Windows/ETABS
+        file.seek(0) # Volver al inicio del archivo para re-leer
+        df = pd.read_csv(file, skiprows=1, encoding='latin-1')
+    
+    # Capturar unidades (Fila 0 después del skip)
     unidades = df.iloc[0].to_dict()
     unidades = {str(k).strip(): str(v).strip() for k, v in unidades.items()}
+    
+    # Limpiar el DataFrame
     df = df.drop(0).reset_index(drop=True)
     df.columns = df.columns.str.strip()
+    
+    # Convertir a números de forma segura
     for col in df.columns:
         try:
-            # Intentamos convertir, si falla (porque es texto), se queda igual
             df[col] = pd.to_numeric(df[col])
         except (ValueError, TypeError):
             continue
+            
     return df, unidades
 
 def obtener_geometria_columna(nodo_id, df_conn, df_sum, df_sec):
