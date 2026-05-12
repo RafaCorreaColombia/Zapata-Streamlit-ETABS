@@ -81,6 +81,11 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
 
         comb_predim = st.selectbox("Comb. para centrar zapata:", combs_servicio)
 
+        st.subheader("🎮 Ajuste Opcional de Posición")
+        col_delta_l, col_delta_t = st.columns(2)
+        delta_L = col_delta_l.slider("Desplazamiento Longitudinal (ΔL)", -0.5, 0.5, 0.0, step=0.01)
+        delta_T = col_delta_t.slider("Desplazamiento Transversal (ΔT)", -0.2, 0.2, 0.0, step=0.01)
+
         if st.button("🚀 Ejecutar Diseño Completo"):
             # Cargas para Predimensionamiento
             for info in info_nodos:
