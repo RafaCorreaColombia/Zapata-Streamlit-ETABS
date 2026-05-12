@@ -47,68 +47,110 @@ def obtener_geometria_columna(nodo_id, df_conn, df_sum, df_sec):
     except:
         return None
 
-# --- 2. LÓGICA DE PRESIONES Y ESTABILIDAD ---
+import pandas as pd
+import numpy as np
 
-def calcular_presiones_4_esquinas(L, B, P, M_long, M_trans):
-    """Calcula presiones en las 4 esquinas de la zapata."""
+
+
+# --- 2. LÓGICA DE TRANSFORMACIÓN DE COORDENADAS ---
+
+def obtener_angulo_zapata(p1, p2):
+    """
+    Calcula el ángulo de inclinación del eje longitudinal (Nodo1 -> Nodo2)
+    respecto al eje X global.
+    """
+    dx = p2[0] - p1[0]
+    dy = p2[1] - p1[1]
+    return np.arctan2(dy, dx)
+
+def transformar_momentos_a_local(mx_global, my_global, alpha):
+    """
+    Transforma momentos globales de ETABS a ejes locales de la zapata.
+    
+    CONVENCIÓN ADOPTADA:
+    - M_long: Momento que actúa ALREDEDOR del eje longitudinal. 
+              Produce flexión en el sentido TRANSVERSAL (hacia el ancho B).
+    - M_trans: Momento que actúa ALREDEDOR del eje transversal. 
+               Produce flexión en el sentido LONGITUDINAL (hacia el largo L).
+               
+    Regla de la mano derecha: 
+    Rotamos los vectores momento (Mx, My) como vectores posición.
+    """
+    # Rotación de vectores:
+    # M_eje_L = Mx * cos(a) + My * sin(a)
+    # M_eje_T = -Mx * sin(a) + My * cos(a)
+    
+    m_eje_long = mx_global * np.cos(alpha) + my_global * np.sin(alpha)
+    m_eje_trans = -mx_global * np.sin(alpha) + my_global * np.cos(alpha)
+    
+    # Para el diseño:
+    # El momento que nos importa para centrar la zapata (X_res) es el que 
+    # hace girar la zapata en su sentido largo. Ese es el m_eje_trans.
+    
+    return m_eje_long, m_eje_trans
+
+# --- 3. LÓGICA DE PRESIONES Y ESTABILIDAD ---
+
+def calcular_presiones_4_esquinas(L, B, P, M_alrededor_T, M_alrededor_L):
+    """
+    Calcula presiones considerando:
+    M_alrededor_T: Momento que genera excentricidad en la longitud L.
+    M_alrededor_L: Momento que genera excentricidad en el ancho B.
+    """
     if L <= 0 or B <= 0: return 0.0, 0.0
     A = L * B
-    # Inercias locales
-    Ix = (B * L**3) / 12
-    Iy = (L * B**3) / 12
+    # Inercias respecto a los ejes que pasan por el centroide
+    # I_alrededor_T (eje transversal) = B * L^3 / 12
+    # I_alrededor_L (eje longitudinal) = L * B^3 / 12
+    It = (B * L**3) / 12
+    Il = (L * B**3) / 12
     
-    # Esquinas relativas al centroide (x es eje largo L, y es eje corto B)
+    # Esquinas (x_local, y_local)
     esquinas = [(L/2, B/2), (L/2, -B/2), (-L/2, B/2), (-L/2, -B/2)]
     presiones = []
     for x, y in esquinas:
-        # Sumamos efectos absolutos para s_max
-        s = (abs(P)/A) + (abs(M_long) * abs(x) / Ix) + (abs(M_trans) * abs(y) / Iy)
+        # P/A + M_T * x / It + M_L * y / Il
+        s = (abs(P)/A) + (abs(M_alrededor_T) * abs(x) / It) + (abs(M_alrededor_L) * abs(y) / Il)
         presiones.append(s)
         
-    # s_min aproximado para chequeo de tracción
-    s_min = (abs(P)/A) - (abs(M_long) * (L/2) / Ix) - (abs(M_trans) * (B/2) / Iy)
+    # s_min considerando resta de efectos para verificar tracción
+    s_min = (abs(P)/A) - (abs(M_alrededor_T) * (L/2) / It) - (abs(M_alrededor_L) * (B/2) / Il)
     
     return max(presiones), s_min
 
-def optimizar_ancho_B(L, P_total, M_trans, q_neto, B_min_fisico):
-    """Busca el ancho B mínimo que cumpla presiones sin tracción."""
-    B = B_min_fisico
-    while B < 10.0:
-        s_max, s_min = calcular_presiones_4_esquinas(L, B, P_total, 0, M_trans)
-        if s_max <= q_neto and s_min >= 0:
-            return round(B, 2)
-        B += 0.05
-    return round(B, 2)
-
-# --- 3. TRANSFORMACIÓN Y GEOMETRÍA ---
-
-def rotar_momentos(mx_global, my_global, angle):
-    m_long = mx_global * np.cos(angle) + my_global * np.sin(angle)
-    m_trans = -mx_global * np.sin(angle) + my_global * np.cos(angle)
-    return m_long, m_trans
+# --- 4. INTEGRACIÓN EN GEOMETRÍA Y CARGAS ---
 
 def procesar_geometria_y_cargas(p1, p2, reac1, reac2):
+    """
+    Calcula la distancia entre ejes, ángulo de rotación y momentos locales.
+    """
     vector_z = p2 - p1
     L_ejes = np.linalg.norm(vector_z)
-    alpha = np.arctan2(vector_z[1], vector_z[0])
+    alpha = obtener_angulo_zapata(p1, p2)
     
-    ml_1, mt_1 = rotar_momentos(reac1['MX'], reac1['MY'], alpha)
-    ml_2, mt_2 = rotar_momentos(reac2['MX'], reac2['MY'], alpha)
+    # Transformar momentos de ambos nodos
+    ml_1, mt_1 = transformar_momentos_a_local(reac1['MX'], reac1['MY'], alpha)
+    ml_2, mt_2 = transformar_momentos_a_local(reac2['MX'], reac2['MY'], alpha)
     
-    # Compresión positiva
     R = abs(reac1['FZ']) + abs(reac2['FZ'])
-    # Centroide de cargas desde p1
-    x_res = (abs(reac2['FZ']) * L_ejes + ml_1 + ml_2) / R
+    
+    # CENTROIDE (X_res):
+    # Sumatoria de momentos respecto al Nodo 1 en el eje transversal local.
+    # El momento mt_1 y mt_2 (alrededor del eje T) inclinan la zapata en sentido L.
+    x_res = (abs(reac2['FZ']) * L_ejes + mt_1 + mt_2) / R
     
     return {
         'L_ejes': L_ejes, 
         'R_total': R, 
         'x_resultante': x_res,
-        'alpha': alpha, 
-        'm_trans_total': mt_1 + mt_2 
+        'alpha_deg': np.degrees(alpha),
+        'm_long_total': ml_1 + ml_2, # Momento total alrededor del eje L (vuelco en B)
+        'm_trans_total': mt_1 + mt_2  # Momento total alrededor del eje T (vuelco en L)
     }
 
-# --- 4. VERIFICACIONES DE DISEÑO ---
+
+
+# --- 5. VERIFICACIONES DE DISEÑO ---
 
 def calcular_secciones_criticas(dist_ejes, g1, g2, H, b1, b2):
     d = H - 0.075
