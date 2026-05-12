@@ -24,11 +24,11 @@ vuelo_usr = st.sidebar.number_input("Vuelo mínimo (m)", value=0.0, step=0.05)
 
 st.sidebar.header("2. Carga de Archivos ETABS")
 with st.sidebar:
-    f_reac = st.file_uploader("Reacciones (.csv)", type="csv")
-    f_coords = st.file_uploader("Coordenadas (.csv)", type="csv")
-    f_conn = st.file_uploader("Conectividad (.csv)", type="csv")
-    f_sum = st.file_uploader("Resumen (.csv)", type="csv")
-    f_sec = st.file_uploader("Secciones (.csv)", type="csv")
+    f_reac = st.file_uploader("Reacciones (.csv)", type="csv", help="Upload the 'Joint Reactions' table exported from ETABS.")
+    f_coords = st.file_uploader("Coordenadas (.csv)", type="csv", help="Upload the 'Joint Coordinates Data' table exported from ETABS.")
+    f_conn = st.file_uploader("Conectividad (.csv)", type="csv", help="Upload the 'Column Connectivity Data' table to identify column nodes.")
+    f_sum = st.file_uploader("Resumen (.csv)", type="csv", help="Upload the 'Frame Assignments - Summary' or '??' table.")
+    f_sec = st.file_uploader("Secciones (.csv)", type="csv", help="Upload the 'Frame Section' table to get column dimensions (t2, t3).")
 
 if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
     df_r, unit_r = engine.procesar_csv_etabs(f_reac)
