@@ -114,7 +114,7 @@ def calcular_presiones_4_esquinas(L, B, P, M_alrededor_T, M_alrededor_L):
     s_min = (abs(P)/A) - (abs(M_alrededor_T) * (L/2) / It) - (abs(M_alrededor_L) * (B/2) / Il)
     return max(presiones), s_min
 
-def optimizar_ancho_B(L, P_total, M_trans, q_neto, B_min_fisico):
+def optimizar_ancho_B(L, P_total, M_long, M_trans, q_neto, B_min_fisico):
     B = np.ceil(B_min_fisico * 20) / 20
     while B < 15.0:
         s_max, s_min = calcular_presiones_4_esquinas(L, B, P_total, M_long, M_trans)
