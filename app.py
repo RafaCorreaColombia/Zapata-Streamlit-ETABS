@@ -89,7 +89,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
         with col_b:
             dict_bordes = {}
             for i, n in enumerate(nodos_ord):
-                dict_bordes[n] = st.checkbox(f"Borde Nodo {n}", value=(i==0 or i==len(nodos_ord)-1))
+                dict_bordes[n] = st.checkbox(f"Borde Nodo {n}", value=False)
         with col_m:
             comb_maestra = st.selectbox("Combinación Maestra (D+L):", combs_servicio)
             st.write("---")
