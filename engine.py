@@ -126,43 +126,59 @@ def optimizar_ancho_B(L, P_total, M_trans, q_neto, B_min_fisico):
 def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, xr, yr=0.0):
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    # 1. Dibujar Contorno de la Zapata (Origen local: el borde izquierdo está en -s1)
-    x_min_zap = -s1
-    rect_zapata = patches.Rectangle((x_min_zap, -B/2), L, B, linewidth=2, edgecolor='black', facecolor='#f0f0f0', label='Zapata')
+    # --- LÓGICA DE POSICIONAMIENTO ---
+    # El centro de la zapata (en el eje X) está en Cx_real respecto al Nodo 1 (x=0)
+    # Por lo tanto, el borde izquierdo de la zapata está en:
+    x_inicio_zapata = Cx_real - (L / 2)
+    y_inicio_zapata = yr - (B / 2) # yr suele ser 0, centrado en el eje de los nodos
+    
+    # 1. Dibujar Contorno de la Zapata
+    rect_zapata = patches.Rectangle(
+        (x_inicio_zapata, y_inicio_zapata), L, B, 
+        linewidth=2, edgecolor='black', facecolor='#f8f9fa', label='Zapata', zorder=1
+    )
     ax.add_patch(rect_zapata)
     
     # 2. Dibujar Columnas
     for i, info in enumerate(info_nodos):
-        # La posición x de la col i es la distancia acumulada desde el Nodo 1 (que está en x=0)
+        # Distancia del nodo i respecto al Nodo 1 (x=0)
         dist_x = np.linalg.norm(info['coords'] - info_nodos[0]['coords'])
         t_long = info['geo']['t3']
         t_trans = info['geo']['t2']
         
+        # El rectángulo de la columna se centra en su nodo
         rect_col = patches.Rectangle(
             (dist_x - t_long/2, -t_trans/2), t_long, t_trans, 
-            linewidth=1, edgecolor='darkred', facecolor='red', alpha=0.7,
-            label=f"Col {info['id']}" if i == 0 else ""
+            linewidth=1.5, edgecolor='#800000', facecolor='#ff4b4b', alpha=0.8,
+            label=f"Columnas" if i == 0 else "", zorder=3
         )
         ax.add_patch(rect_col)
-        ax.text(dist_x, t_trans/2 + 0.05, f"N-{info['id']}", ha='center', fontweight='bold')
+        ax.text(dist_x, t_trans/2 + 0.1, f"N-{info['id']}", ha='center', fontweight='bold', fontsize=9)
 
-    # 3. Marcar Centro Geométrico (Cx_real) y Resultante (xr)
-    ax.scatter([Cx_real], [0], color='blue', marker='x', s=100, label='Centro Geométrico (Cx)')
-    ax.scatter([xr], [yr], color='green', marker='o', s=100, label='Resultante (Xr)')
+    # 3. Marcar puntos de control
+    # Centro Geométrico (X azul)
+    ax.scatter([Cx_real], [0], color='blue', marker='x', s=120, label='Centro Geométrico (Cx)', zorder=4)
+    # Resultante de Cargas (O verde)
+    ax.scatter([xr], [yr], color='green', marker='o', s=120, edgecolors='white', label='Resultante (Xr)', zorder=5)
     
-    # Configuración de ejes
+    # 4. Líneas de referencia (Ejes)
+    ax.axhline(0, color='gray', lw=0.8, ls='--', alpha=0.5)
+    
+    # Configuración final
     ax.set_aspect('equal', adjustable='box')
-    ax.axhline(0, color='black', lw=0.5, ls='--') # Eje longitudinal
-    ax.set_title("Vista en Planta de la Zapata (Ejes Locales)", fontsize=14)
-    ax.set_xlabel("Longitud (m)")
-    ax.set_ylabel("Ancho (m)")
-    ax.grid(True, linestyle=':', alpha=0.6)
-    ax.legend(loc='upper right', fontsize='small')
+    ax.set_title(f"Planta de Cimentación: L={L:.2f}m, B={B:.2f}m", fontsize=12, pad=15)
+    ax.set_xlabel("Eje Longitudinal (m)")
+    ax.set_ylabel("Eje Transversal (m)")
     
-    # Ajustar límites de vista
-    ax.set_xlim(x_min_zap - 0.5, x_min_zap + L + 0.5)
-    ax.set_ylim(-B/2 - 0.5, B/2 + 0.5)
+    # Leyenda y Grid
+    ax.legend(loc='upper right', bbox_to_anchor=(1.25, 1))
+    ax.grid(True, linestyle=':', alpha=0.4)
     
+    # Ajuste dinámico de límites para que siempre se vea toda la zapata
+    ax.set_xlim(x_inicio_zapata - 0.5, x_inicio_zapata + L + 0.5)
+    ax.set_ylim(y_inicio_zapata - 0.5, y_inicio_zapata + B + 0.5)
+    
+    plt.tight_layout()
     return fig
 
 # --- 5. MÉTRICAS PARA MEMORIA DE CÁLCULO ---
