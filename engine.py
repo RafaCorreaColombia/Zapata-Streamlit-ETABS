@@ -55,11 +55,6 @@ def obtener_angulo_zapata(p1, p2):
     return np.arctan2(dy, dx)
 
 def transformar_momentos_a_local(mx_global, my_global, alpha):
-    """
-    Rota momentos globales al sistema local de la zapata.
-    m_eje_long: Alrededor del eje longitudinal (afecta ancho B).
-    m_eje_trans: Alrededor del eje transversal (afecta largo L).
-    """
     m_eje_long = mx_global * np.cos(alpha) + my_global * np.sin(alpha)
     m_eje_trans = -mx_global * np.sin(alpha) + my_global * np.cos(alpha)
     return m_eje_long, m_eje_trans
@@ -67,28 +62,21 @@ def transformar_momentos_a_local(mx_global, my_global, alpha):
 # --- 3. LÓGICA MULTICOLUMNA Y RESULTANTES ---
 
 def procesar_geometria_multicolumna(lista_nodos, key_reac='reac'):
-    """
-    Procesa 2 o 3 columnas. 
-    lista_nodos debe estar ordenada físicamente de extremo a extremo.
-    """
     p_ref = lista_nodos[0]['coords']
     p_fin = lista_nodos[-1]['coords']
     alpha = obtener_angulo_zapata(p_ref, p_fin)
     
     r_total = 0
-    m_l_total = 0 # Vuelco longitudinal (alrededor del eje T)
-    m_t_total = 0 # Vuelco transversal (alrededor del eje L)
+    m_l_total = 0 
+    m_t_total = 0 
     
     for nodo in lista_nodos:
         dist_rel = np.linalg.norm(nodo['coords'] - p_ref)
         reac = nodo[key_reac]
-        
-        # Rotación de momentos
         ml, mt = transformar_momentos_a_local(reac['MX'], reac['MY'], alpha)
         
         fz = abs(reac['FZ'])
         r_total += fz
-        # Sumatoria de momentos respecto al primer nodo (p_ref)
         m_l_total += (fz * dist_rel + mt)
         m_t_total += ml
         
@@ -99,7 +87,7 @@ def procesar_geometria_multicolumna(lista_nodos, key_reac='reac'):
         'dist_max_ejes': np.linalg.norm(p_fin - p_ref),
         'R_total': r_total,
         'x_resultante': x_res,
-        'm_trans_total': m_t_total, # Momento total alrededor del eje L
+        'm_trans_total': m_t_total, 
         'alpha': alpha
     }
 
@@ -114,9 +102,11 @@ def calcular_presiones_4_esquinas(L, B, P, M_alrededor_T, M_alrededor_L):
     esquinas = [(L/2, B/2), (L/2, -B/2), (-L/2, B/2), (-L/2, -B/2)]
     presiones = []
     for x, y in esquinas:
+        # P/A + M_T*x/It + M_L*y/Il
         s = (abs(P)/A) + (abs(M_alrededor_T) * abs(x) / It) + (abs(M_alrededor_L) * abs(y) / Il)
         presiones.append(s)
     
+    # s_min considerando la resta para verificar tracción
     s_min = (abs(P)/A) - (abs(M_alrededor_T) * (L/2) / It) - (abs(M_alrededor_L) * (B/2) / Il)
     return max(presiones), s_min
 
@@ -129,10 +119,49 @@ def optimizar_ancho_B(L, P_total, M_trans, q_neto, B_min_fisico):
         B += 0.05
     return round(B, 2)
 
-# --- 5. VERIFICACIONES DE DISEÑO ---
+# --- 5. MÉTRICAS PARA MEMORIA DE CÁLCULO ---
+
+def calcular_metricas_memoria(L, B, res_s, q_neto, comb_nombre, comb_maestra, e_L, e_T):
+    """
+    Calcula excentricidades y deltas de presión para la memoria.
+    e_L y e_T vienen calculados desde app.py incluyendo los Deltas del usuario.
+    """
+    # 1. Porcentajes de excentricidad
+    ratio_eL = (e_L / L) * 100
+    ratio_eT = (e_T / B) * 100
+    
+    # 2. Presiones finales (Incluyendo momentos de excentricidad y momentos locales rotados)
+    # M_alrededor_T (longitudinal) = P * e_L
+    # M_alrededor_L (transversal) = Momento local rotado + P * e_T
+    s_max, s_min = calcular_presiones_4_esquinas(
+        L, B, res_s['R_total'], 
+        e_L * res_s['R_total'], 
+        abs(res_s['m_trans_total']) + (e_T * res_s['R_total'])
+    )
+    
+    # 3. Diferencia de presiones
+    diff_p = ((s_max - s_min) / s_min * 100) if s_min > 0 else 999.0
+    
+    # 4. Criterios según tipo de combinación
+    es_m = (comb_nombre == comb_maestra)
+    c_e = 5.0 if es_m else 10.0
+    c_p = 15.0 if es_m else 90.0
+    
+    return {
+        "Combinación": comb_nombre,
+        "P (kN)": round(res_s['R_total'], 1),
+        "e_L (%)": round(ratio_eL, 2),
+        "e_T (%)": round(ratio_eT, 2),
+        "σ_max": round(s_max, 2),
+        "σ_min": round(s_min, 2),
+        "ΔP (%)": round(diff_p, 2),
+        "Criterio E": "✅" if (ratio_eL <= c_e and ratio_eT <= c_e) else "⚠️",
+        "Criterio P": "✅" if (not es_m or diff_p <= c_p) else "⚠️"
+    }
+
+# --- 6. VERIFICACIONES DE DISEÑO ---
 
 def calcular_secciones_criticas(dist_ejes, g1, g2, H, b1, b2):
-    # Nota: Esta función se mantiene para compatibilidad con el loop de 2 columnas
     d = H - 0.075
     def bo_calc(t3, t2, d_val, borde):
         if borde: return (2*(t3 + d_val/2)) + (t2 + d_val)
@@ -142,8 +171,6 @@ def calcular_secciones_criticas(dist_ejes, g1, g2, H, b1, b2):
         'bo1': bo_calc(g1['t3'], g1['t2'], d, b1),
         'bo2': bo_calc(g2['t3'], g2['t2'], d, b2)
     }
-
-# --- 6. REFUERZO ---
 
 def diseno_refuerzo(Mu, d, B, fc, fy=420):
     phi, b, d_mm = 0.9, B * 1000, d * 1000
