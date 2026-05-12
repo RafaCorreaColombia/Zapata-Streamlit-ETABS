@@ -68,6 +68,24 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
         
         st.info(f"Eje Longitudinal detectado: " + " → ".join([f"Col {n}" for n in nodos_ord]))
 
+        # --- BLOQUE DE VERIFICACIÓN DE GEOMETRÍA ---
+        with st.expander("📊 Ver Detalles de Secciones (ETABS)", expanded=True):
+            cols_geo = st.columns(len(info_nodos))
+            for i, info in enumerate(info_nodos):
+                with cols_geo[i]:
+                    st.markdown(f"**Nodo {info['id']} ({info['geo']['label']})**")
+                    st.caption(f"Sección: {info['geo']['seccion']}")
+                    # t_long es el t3 de ETABS (dimensión en el sentido del eje longitudinal)
+                    # t_trans es el t2 de ETABS (dimensión en el sentido del ancho B)
+                    st.write(f"📐 $t_{{long}}$: **{info['geo']['t3']:.3f} m**")
+                    st.write(f"📐 $t_{{trans}}$: **{info['geo']['t2']:.3f} m**")
+
+        st.markdown("---")
+
+        # 2. Parámetros de Diseño (Bordes, Deltas, etc.)
+        st.subheader("⚙️ Ajustes de Diseño")
+        # ... continúa el resto del código
+
         # 2. Parámetros de Diseño
         st.subheader("⚙️ Ajustes de Diseño")
         col_b, col_m = st.columns(2)
@@ -90,19 +108,69 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
 
             res_m = engine.procesar_geometria_multicolumna(info_nodos, key_reac='reac_m')
             
-            # B. Dimensionamiento Longitudinal (L)
-            s1 = (info_nodos[0]['geo']['t3']/2) if dict_bordes[nodos_ord[0]] else (info_nodos[0]['geo']['t3']/2 + 0.15)
-            s2 = (info_nodos[-1]['geo']['t3']/2) if dict_bordes[nodos_ord[-1]] else (info_nodos[-1]['geo']['t3']/2 + 0.15)
+            # --- B. DIMENSIONAMIENTO LONGITUDINAL (L) CON RESTRICCIONES ---
+            xr = res_m['x_resultante'] # Distancia resultante desde Nodo 1
+            L_ejes = res_m['dist_max_ejes']
             
-            L_min = res_m['dist_max_ejes'] + s1 + s2
-            L_eq = (res_m['x_resultante'] + s1) * 2
-            L_zapata = max(L_min, L_eq)
+            # s1 y s2: Recubrimiento/Vuelo mínimo desde el centro de la col al borde
+            # Si es borde, el recubrimiento es t3/2 estrictamente.
+            s1_min = info_nodos[0]['geo']['t3'] / 2
+            s2_min = info_nodos[-1]['geo']['t3'] / 2
             
-            # C. Definición del Centro Geométrico (Cx, Cy)
-            # Por defecto Cx es L/2 desde el borde izquierdo. Cy es el eje de columnas.
-            # Aplicamos los Deltas aquí:
-            Cx_real = (L_zapata / 2) + delta_L
-            Cy_real = 0.0 + delta_T  # El eje local de columnas es 0.0
+            # s_vuelo: Vuelo extra si NO es de borde (ej. 15cm o lo que el usuario defina)
+            vuelo = 0.15
+            
+            if dict_bordes[nodos_ord[0]] and dict_bordes[nodos_ord[-1]]:
+                # CASO: AMBOS BORDES (L está restringido)
+                L_zapata = L_ejes + s1_min + s2_min
+                Cx_teorico = L_zapata / 2 - s1_min # Centro respecto al Nodo 1
+                
+            elif dict_bordes[nodos_ord[0]]:
+                # CASO: BORDE IZQUIERDO (Crece hacia la derecha)
+                # Para ser concéntrica: L = 2 * (xr + s1_min)
+                # Pero debe cubrir al menos: L_min = s1_min + L_ejes + (s2_min + vuelo)
+                L_ideal = 2 * (xr + s1_min)
+                L_min = s1_min + L_ejes + (s2_min + vuelo)
+                L_zapata = max(L_ideal, L_min)
+                Cx_teorico = xr # Intentamos que coincida, si L=L_min habrá excentricidad
+                
+            elif dict_bordes[nodos_ord[-1]]:
+                # CASO: BORDE DERECHO (Crece hacia la izquierda)
+                # Para ser concéntrica: L = 2 * ( (L_ejes - xr) + s2_min )
+                # Pero debe cubrir al menos: L_min = (s1_min + vuelo) + L_ejes + s2_min
+                dist_der = L_ejes - xr
+                L_ideal = 2 * (dist_der + s2_min)
+                L_min = (s1_min + vuelo) + L_ejes + s2_min
+                L_zapata = max(L_ideal, L_min)
+                # El centro Cx respecto al Nodo 1 sería: xr (si es ideal) 
+                # o desplazado si domina L_min
+                Cx_teorico = xr 
+
+            else:
+                # CASO: LIBRE (Busca concentricidad total)
+                d_izq = xr + s1_min + vuelo
+                d_der = (L_ejes - xr) + s2_min + vuelo
+                L_zapata = max(d_izq, d_der) * 2
+                Cx_teorico = xr
+
+            # --- C. DEFINICIÓN DEL CENTRO GEOMÉTRICO REAL ---
+            # El Cx_real es la posición del centro de la zapata respecto al Nodo 1
+            # Si la zapata es concéntrica perfecta, Cx_real = xr
+            # Pero si hay restricciones de borde, el centro se desplaza:
+            
+            if dict_bordes[nodos_ord[0]]:
+                # Si es borde izquierdo, el centro está a L/2 del borde (que es -s1_min)
+                Cx_centro_geom = (L_zapata / 2) - s1_min
+            elif dict_bordes[nodos_ord[-1]]:
+                # Si es borde derecho, el centro está a L/2 del borde derecho (que es L_ejes + s2_min)
+                Cx_centro_geom = L_ejes + s2_min - (L_zapata / 2)
+            else:
+                # Si es libre, centramos en xr
+                Cx_centro_geom = xr
+
+            # Cx_real FINAL con el ajuste manual del usuario
+            Cx_real = Cx_centro_geom + delta_L
+            Cy_real = 0.0 + delta_T
 
             # D. Espesor y B
             H_prelim = res_m['dist_max_ejes'] / factor_h
