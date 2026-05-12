@@ -105,19 +105,45 @@ if all([file_reacciones, file_coords, file_conn, file_sum, file_sec]):
                     st.write(f"Nodo {nodos_sel[1]}: Fz={reac2[col_fz]:.1f}, Mx={reac2[col_mx]:.1f}, My={reac2[col_my]:.1f}")
 
                 # C. Centroide y Dimensionamiento
-                L_equilibrio = res_ub['x_resultante'] * 2
-                L_min_geom = res_ub['L_ejes'] + (g1['t3']/2) + (g2['t3']/2) + 0.20
-                L_zapata = max(L_equilibrio, L_min_geom)
+                # --- NUEVA LÓGICA DE GEOMETRÍA ---
+                
+                # 1. Distancia desde N1 a la resultante
+                x_res = res_ub['x_resultante'] 
+                
+                # 2. Definir los límites físicos (Vuelos/Voladizos)
+                # Voladizo izquierdo (S1): Distancia desde N1 al borde izquierdo
+                # Si es borde, el voladizo es la mitad de la columna. Si no, puedes darle un margen.
+                s1 = (g1['t3'] / 2) if es_borde_1 else (g1['t3'] / 2 + 0.15)
+                
+                # 3. Calcular L para que sea concéntrica con la resultante
+                # L/2 = x_res + s1  =>  L = 2 * (x_res + s1)
+                L_estatico = 2 * (x_res + s1)
+                
+                # 4. Verificar longitud mínima para cubrir la Col 2
+                # L_min = s1 + Dist_ejes + mitad_Col2 + margen
+                s2_min = (g2['t3'] / 2) if es_borde_2 else (g2['t3'] / 2 + 0.15)
+                L_min_fisica = s1 + res_ub['L_ejes'] + s2_min
+                
+                # 5. La Longitud final es la mayor de ambas
+                L_zapata = max(L_estatico, L_min_fisica)
+                
+                # 6. Si L_zapata > L_estatico, la resultante NO quedará en el centro.
+                # Calculamos la nueva excentricidad longitudinal para las presiones
+                excentricidad_L = abs((L_zapata / 2) - (x_res + s1))
+                
+                # 7. Dimensionar B y H
                 H_calc = res_ub['L_ejes'] / factor_h
                 q_neto = q_adm - (24.0 * H_calc)
                 B_fisico = max(g1['t2'], g2['t2']) + 0.20
-                B_optimo = engine.optimizar_ancho_B(L_zapata, res_ub['R_total'], res_ub['m_trans_total'], q_neto, B_fisico)
-
-                st.write("**3. Centroide y Dimensionamiento**")
-                c_a, c_b, c_c = st.columns(3)
-                c_a.metric("X Resultante (desde N1)", f"{res_ub['x_resultante']:.3f} m")
-                c_b.metric("L calculada (2*Xres)", f"{L_zapata:.3f} m")
-                c_c.metric("Ancho B (Final)", f"{B_optimo:.2f} m")
+                
+                # Llamamos a optimizar pasando la excentricidad real
+                B_optimo = engine.optimizar_ancho_B(
+                    L_zapata, 
+                    res_ub['R_total'], 
+                    excentricidad_L * res_ub['R_total'], # Momento inducido por excentricidad
+                    q_neto, 
+                    B_fisico
+                )
 
                 # D. Presiones de Servicio
                 st.write("**4. Verificación de Presiones (Servicio)**")
