@@ -82,10 +82,6 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
 
         st.markdown("---")
 
-        # 2. Parámetros de Diseño (Bordes, Deltas, etc.)
-        st.subheader("⚙️ Ajustes de Diseño")
-        # ... continúa el resto del código
-
         # 2. Parámetros de Diseño
         st.subheader("⚙️ Ajustes de Diseño")
         col_b, col_m = st.columns(2)
