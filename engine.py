@@ -121,7 +121,7 @@ def optimizar_ancho_B(L, P_total, M_trans, q_neto, B_min_fisico):
         if s_max <= q_neto and s_min >= 0:
             return round(B, 2)
         B += 0.10
-    return round(B, 2)
+    return round(B, 1)
 
 def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, xr, yr=0.0):
     fig, ax = plt.subplots(figsize=(10, 6))
