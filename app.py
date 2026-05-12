@@ -20,6 +20,7 @@ st.sidebar.header("1. Parámetros de Suelo y Concreto")
 q_adm = st.sidebar.number_input("Esfuerzo Admisible Neto (kN/m²)", value=250.0)
 fc = st.sidebar.selectbox("f'c Concreto (MPa)", [21, 28, 35], index=1)
 factor_h = st.sidebar.slider("Relación H vs L_ejes (1/X)", 6, 12, 8)
+vuelo_usr = st.sidebar.number_input("Vuelo mínimo (m)", value=0.0, step=0.05)
 
 st.sidebar.header("2. Carga de Archivos ETABS")
 with st.sidebar:
@@ -111,11 +112,10 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             # 1. Definir s1 y s2 de forma global para que estén disponibles en todo el bloque
             s1_min = info_nodos[0]['geo']['t3'] / 2
             s2_min = info_nodos[-1]['geo']['t3'] / 2
-            vuelo_default = 0.15
-            
+                        
             # s1 y s2 finales (usados para la geometría física)
-            s1 = s1_min if dict_bordes[nodos_ord[0]] else (s1_min + vuelo_default)
-            s2 = s2_min if dict_bordes[nodos_ord[-1]] else (s2_min + vuelo_default)
+            s1 = s1_min if dict_bordes[nodos_ord[0]] else (s1_min + vuelo_usr)
+            s2 = s2_min if dict_bordes[nodos_ord[-1]] else (s2_min + vuelo_usr)
             
             # 2. Lógica de Longitud L (Jerarquía de bordes)
             if dict_bordes[nodos_ord[0]] and dict_bordes[nodos_ord[-1]]:
