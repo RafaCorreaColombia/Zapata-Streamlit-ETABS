@@ -119,25 +119,26 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             
             # 2. Lógica de Longitud L (Jerarquía de bordes)
             if dict_bordes[nodos_ord[0]] and dict_bordes[nodos_ord[-1]]:
-                L_zapata = L_ejes + s1_min + s2_min
+                L_zapata = np.ceil((L_ejes + s1_min + s2_min) * 10) / 10
                 Cx_centro_geom = (L_zapata / 2) - s1_min
             elif dict_bordes[nodos_ord[0]]:
                 L_ideal = 2 * (xr + s1_min)
                 L_min_f = s1_min + L_ejes + s2
-                L_zapata = max(L_ideal, L_min_f)
+                L_zapata = np.ceil(max(L_ideal, L_min_f)) * 10) / 10)
                 Cx_centro_geom = (L_zapata / 2) - s1_min
             elif dict_bordes[nodos_ord[-1]]:
                 dist_der = L_ejes - xr
                 L_ideal = 2 * (dist_der + s2_min)
                 L_min_f = s1 + L_ejes + s2_min
-                L_zapata = max(L_ideal, L_min_f)
+                L_zapata = np. ceil(max(L_ideal, L_min_f) * 10) / 10
                 Cx_centro_geom = L_ejes + s2_min - (L_zapata / 2)
             else:
                 d_izq = xr + s1
                 d_der = (L_ejes - xr) + s2
-                L_zapata = max(d_izq, d_der) * 2
+                L_zapata = np.ceil(max(d_izq, d_der) * 2 * 10) /10
                 Cx_centro_geom = xr
 
+            
             # --- C. DEFINICIÓN DEL CENTRO GEOMÉTRICO REAL (Incluye Deltas) ---
             Cx_real = Cx_centro_geom + delta_L
             Cy_real = 0.0 + delta_T
@@ -145,7 +146,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             # --- D. ESPESOR Y ANCHO B ---
             H_prelim = np.ceil((res_m['dist_max_ejes'] / factor_h) * 20) / 20
             q_neto = q_adm - (24.0 * H_prelim)
-            B_min = max([n['geo']['t2'] for n in info_nodos]) + 0.20
+            B_min = np.ceil((max([n['geo']['t2'] for n in info_nodos]) + 0.20) * 10) / 10
             
             # AHORA SÍ: e_L_m ya conoce a s1 porque lo definimos arriba
             # La excentricidad es la distancia entre el centro real de la zapata y la carga
