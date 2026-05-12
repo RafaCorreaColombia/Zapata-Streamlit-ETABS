@@ -108,74 +108,58 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             xr = res_m['x_resultante'] # Distancia resultante desde Nodo 1
             L_ejes = res_m['dist_max_ejes']
             
-            # s1 y s2: Recubrimiento/Vuelo mínimo desde el centro de la col al borde
-            # Si es borde, el recubrimiento es t3/2 estrictamente.
+            # 1. Definir s1 y s2 de forma global para que estén disponibles en todo el bloque
             s1_min = info_nodos[0]['geo']['t3'] / 2
             s2_min = info_nodos[-1]['geo']['t3'] / 2
+            vuelo_default = 0.15
             
-            # s_vuelo: Vuelo extra si NO es de borde (ej. 15cm o lo que el usuario defina)
-            vuelo = 0.15
+            # s1 y s2 finales (usados para la geometría física)
+            s1 = s1_min if dict_bordes[nodos_ord[0]] else (s1_min + vuelo_default)
+            s2 = s2_min if dict_bordes[nodos_ord[-1]] else (s2_min + vuelo_default)
             
+            # 2. Lógica de Longitud L (Jerarquía de bordes)
             if dict_bordes[nodos_ord[0]] and dict_bordes[nodos_ord[-1]]:
-                # CASO: AMBOS BORDES (L está restringido)
                 L_zapata = L_ejes + s1_min + s2_min
-                Cx_teorico = L_zapata / 2 - s1_min # Centro respecto al Nodo 1
-                
+                Cx_centro_geom = (L_zapata / 2) - s1_min
             elif dict_bordes[nodos_ord[0]]:
-                # CASO: BORDE IZQUIERDO (Crece hacia la derecha)
-                # Para ser concéntrica: L = 2 * (xr + s1_min)
-                # Pero debe cubrir al menos: L_min = s1_min + L_ejes + (s2_min + vuelo)
                 L_ideal = 2 * (xr + s1_min)
-                L_min = s1_min + L_ejes + (s2_min + vuelo)
-                L_zapata = max(L_ideal, L_min)
-                Cx_teorico = xr # Intentamos que coincida, si L=L_min habrá excentricidad
-                
-            elif dict_bordes[nodos_ord[-1]]:
-                # CASO: BORDE DERECHO (Crece hacia la izquierda)
-                # Para ser concéntrica: L = 2 * ( (L_ejes - xr) + s2_min )
-                # Pero debe cubrir al menos: L_min = (s1_min + vuelo) + L_ejes + s2_min
-                dist_der = L_ejes - xr
-                L_ideal = 2 * (dist_der + s2_min)
-                L_min = (s1_min + vuelo) + L_ejes + s2_min
-                L_zapata = max(L_ideal, L_min)
-                # El centro Cx respecto al Nodo 1 sería: xr (si es ideal) 
-                # o desplazado si domina L_min
-                Cx_teorico = xr 
-
-            else:
-                # CASO: LIBRE (Busca concentricidad total)
-                d_izq = xr + s1_min + vuelo
-                d_der = (L_ejes - xr) + s2_min + vuelo
-                L_zapata = max(d_izq, d_der) * 2
-                Cx_teorico = xr
-
-            # --- C. DEFINICIÓN DEL CENTRO GEOMÉTRICO REAL ---
-            # El Cx_real es la posición del centro de la zapata respecto al Nodo 1
-            # Si la zapata es concéntrica perfecta, Cx_real = xr
-            # Pero si hay restricciones de borde, el centro se desplaza:
-            
-            if dict_bordes[nodos_ord[0]]:
-                # Si es borde izquierdo, el centro está a L/2 del borde (que es -s1_min)
+                L_min_f = s1_min + L_ejes + s2
+                L_zapata = max(L_ideal, L_min_f)
                 Cx_centro_geom = (L_zapata / 2) - s1_min
             elif dict_bordes[nodos_ord[-1]]:
-                # Si es borde derecho, el centro está a L/2 del borde derecho (que es L_ejes + s2_min)
+                dist_der = L_ejes - xr
+                L_ideal = 2 * (dist_der + s2_min)
+                L_min_f = s1 + L_ejes + s2_min
+                L_zapata = max(L_ideal, L_min_f)
                 Cx_centro_geom = L_ejes + s2_min - (L_zapata / 2)
             else:
-                # Si es libre, centramos en xr
+                d_izq = xr + s1
+                d_der = (L_ejes - xr) + s2
+                L_zapata = max(d_izq, d_der) * 2
                 Cx_centro_geom = xr
 
-            # Cx_real FINAL con el ajuste manual del usuario
+            # --- C. DEFINICIÓN DEL CENTRO GEOMÉTRICO REAL (Incluye Deltas) ---
             Cx_real = Cx_centro_geom + delta_L
             Cy_real = 0.0 + delta_T
 
-            # D. Espesor y B
-            H_prelim = res_m['dist_max_ejes'] / factor_h
+            # --- D. ESPESOR Y ANCHO B ---
+            H_prelim = np.ceil((res_m['dist_max_ejes'] / factor_h) * 20) / 20
+            q_neto = q_adm - (24.0 * H_prelim)
             B_min = max([n['geo']['t2'] for n in info_nodos]) + 0.20
             
-            # Optimización de B basada en la Maestra y Deltas
-            # Excentricidad L para la Maestra = abs(Cx_real - (x_res + s1))
-            e_L_m = abs(Cx_real - (res_m['x_resultante'] + s1))
-            B_optimo = engine.optimizar_ancho_B(L_zapata, res_m['R_total'], e_L_m * res_m['R_total'], q_adm - (24*H_prelim), B_min)
+            # AHORA SÍ: e_L_m ya conoce a s1 porque lo definimos arriba
+            # La excentricidad es la distancia entre el centro real de la zapata y la carga
+            # Posición carga respecto a N1 = xr
+            # Posición centro zapata respecto a N1 = Cx_real
+            e_L_m = abs(Cx_real - xr)
+            
+            B_optimo = engine.optimizar_ancho_B(
+                L_zapata, 
+                res_m['R_total'], 
+                e_L_m * res_m['R_total'], 
+                q_neto, 
+                B_min
+            )
 
             # E. Memoria de Presiones (Envolvente)
             st.subheader("📑 Memoria de Verificación de Presiones y Centroides")
