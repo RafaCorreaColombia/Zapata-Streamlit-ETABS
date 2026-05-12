@@ -121,7 +121,7 @@ def optimizar_ancho_B(L, P_total, M_trans, q_neto, B_min_fisico):
 
 # --- 5. MÉTRICAS PARA MEMORIA DE CÁLCULO ---
 
-def calcular_metricas_memoria(L, B, res_s, q_neto, comb_nombre, comb_maestra, e_L, e_T):
+def calcular_metricas_memoria(L, B, res_s, q_limite, comb_nombre, comb_maestra, e_L, e_T):
     """
     Calcula excentricidades y deltas de presión para la memoria.
     e_L y e_T vienen calculados desde app.py incluyendo los Deltas del usuario.
