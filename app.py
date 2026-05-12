@@ -141,6 +141,46 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             df_memoria = pd.DataFrame(lista_memoria)
             st.table(df_memoria)
 
+            # --- NUEVA SECCIÓN: DISEÑO ESTRUCTURAL (COMB. ÚLTIMAS) ---
+            st.markdown("---")
+            st.subheader("🛡️ Verificación de Cortante y Punzonamiento (Estado Límite)")
+            
+            # Usamos el espesor H preliminar
+            d = H_prelim - 0.075
+            
+            # Para simplificar con 2 o 3 columnas, evaluamos el punzonamiento en cada una
+            res_diseno_nodos = []
+            for info in info_nodos:
+                # Buscamos la peor reacción de diseño (Última) para esta columna
+                max_fz_u = 0
+                max_comb_u = ""
+                for cb_u in combs_diseno:
+                    r_u = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','') == info['id']) & (df_r[col_comb] == cb_u)].iloc[0]
+                    if abs(r_u[col_fz]) > max_fz_u:
+                        max_fz_u = abs(r_u[col_fz])
+                        max_comb_u = cb_u
+                
+                # Capacidad de Punzonamiento (Simplificada para memoria)
+                # bo depende de si es borde o no
+                es_b = dict_bordes[info['id']]
+                t3, t2 = info['geo']['t3'], info['geo']['t2']
+                bo = (2*(t3 + d/2) + (t2 + d)) if es_b else (2*(t3 + d) + 2*(t2 + d))
+                
+                phi_v = 0.75
+                Vn = (0.33 * np.sqrt(fc) * (bo * 1000) * (d * 1000)) / 1000
+                Vu = max_fz_u # Simplificación: carga puntual vs reacción del suelo
+                
+                res_diseno_nodos.append({
+                    "Columna": info['geo']['label'],
+                    "Comb. Crítica": max_comb_u,
+                    "Vu (kN)": round(Vu, 1),
+                    "φVn (kN)": round(phi_v * Vn, 1),
+                    "Estado": "✅ OK" if Vu < phi_v * Vn else "❌ FALLA (H insuficiente)"
+                })
+            
+            st.table(pd.DataFrame(res_diseno_nodos))
+            st.success(f"### ✅ Memoria Generada Exitosamente")
+            
             # F. Resumen de Ingeniería
             st.markdown("---")
             st.write("**Notas de Memoria:**")
