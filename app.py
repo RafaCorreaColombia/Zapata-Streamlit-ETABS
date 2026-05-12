@@ -146,7 +146,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             # --- D. ESPESOR Y ANCHO B ---
             H_prelim = np.ceil((res_m['dist_max_ejes'] / factor_h) * 20) / 20
             q_neto = q_adm - (24.0 * H_prelim)
-            B_min = np.ceil((max([n['geo']['t2'] for n in info_nodos]) + 0.20) * 10) / 10
+            B_min = max([n['geo']['t2'] for n in info_nodos]) + 0.20
             
             # AHORA SÍ: e_L_m ya conoce a s1 porque lo definimos arriba
             # La excentricidad es la distancia entre el centro real de la zapata y la carga
