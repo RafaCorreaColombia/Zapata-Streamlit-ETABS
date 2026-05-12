@@ -124,7 +124,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             elif dict_bordes[nodos_ord[0]]:
                 L_ideal = 2 * (xr + s1_min)
                 L_min_f = s1_min + L_ejes + s2
-                L_zapata = np.ceil(max(L_ideal, L_min_f) * 10) / 10)
+                L_zapata = np.ceil(max(L_ideal, L_min_f) * 10) / 10
                 Cx_centro_geom = (L_zapata / 2) - s1_min
             elif dict_bordes[nodos_ord[-1]]:
                 dist_der = L_ejes - xr
@@ -135,7 +135,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             else:
                 d_izq = xr + s1
                 d_der = (L_ejes - xr) + s2
-                L_zapata = np.ceil(max(d_izq, d_der) * 2 * 10) /10
+                L_zapata = np.ceil(max(d_izq, d_der) * 2 * 10) / 10
                 Cx_centro_geom = xr
 
             
