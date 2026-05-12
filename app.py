@@ -189,6 +189,28 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             df_memoria = pd.DataFrame(lista_memoria)
             st.table(df_memoria)
 
+            # --- G. REPRESENTACIÓN GRÁFICA ---
+            st.markdown("---")
+            st.subheader("🖼️ Visualización en Planta")
+            
+            # xr de la maestra para el dibujo
+            xr_maestra = res_m['x_resultante']
+            
+            # Generar el gráfico usando la función de engine
+            figura = engine.generar_planta_zapata(
+                L_zapata, 
+                B_optimo, 
+                info_nodos, 
+                s1, 
+                Cx_real, 
+                xr_maestra
+            )
+            
+            # Mostrar en Streamlit
+            st.pyplot(figura)
+            
+            st.caption(f"Nota: El origen (0,0) está ubicado en el centro del primer nodo seleccionado (Nodo {nodos_ord[0]}).")
+
             # --- NUEVA SECCIÓN: DISEÑO ESTRUCTURAL (COMB. ÚLTIMAS) ---
             st.markdown("---")
             st.subheader("🛡️ Verificación de Cortante y Punzonamiento (Estado Límite)")
