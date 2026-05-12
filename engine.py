@@ -115,12 +115,12 @@ def calcular_presiones_4_esquinas(L, B, P, M_alrededor_T, M_alrededor_L):
     return max(presiones), s_min
 
 def optimizar_ancho_B(L, P_total, M_trans, q_neto, B_min_fisico):
-    B = B_min_fisico
+    B = np.ceil(B_min_fisico * 10) / 10
     while B < 15.0:
         s_max, s_min = calcular_presiones_4_esquinas(L, B, P_total, 0, M_trans)
         if s_max <= q_neto and s_min >= 0:
             return round(B, 2)
-        B += 0.05
+        B += 0.10
     return round(B, 2)
 
 def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, xr, yr=0.0):
