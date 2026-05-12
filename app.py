@@ -19,7 +19,7 @@ def encontrar_columna(lista_columnas, keywords):
 st.sidebar.header("1. Parámetros de Suelo y Concreto")
 q_adm = st.sidebar.number_input("Esfuerzo Admisible Neto (kN/m²)", value=250.0)
 fc = st.sidebar.selectbox("f'c Concreto (MPa)", [21, 28, 35], index=1)
-factor_h = st.sidebar.slider("Relación H vs L_ejes (1/X)", 8, 15, 10)
+factor_h = st.sidebar.slider("Relación H vs L_ejes (1/X)", 6, 12, 8)
 
 st.sidebar.header("2. Carga de Archivos ETABS")
 with st.sidebar:
