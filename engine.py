@@ -1,5 +1,49 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
+def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, xr, yr=0.0):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # 1. Dibujar Contorno de la Zapata (Origen local: el borde izquierdo está en -s1)
+    x_min_zap = -s1
+    rect_zapata = patches.Rectangle((x_min_zap, -B/2), L, B, linewidth=2, edgecolor='black', facecolor='#f0f0f0', label='Zapata')
+    ax.add_patch(rect_zapata)
+    
+    # 2. Dibujar Columnas
+    for i, info in enumerate(info_nodos):
+        # La posición x de la col i es la distancia acumulada desde el Nodo 1 (que está en x=0)
+        dist_x = np.linalg.norm(info['coords'] - info_nodos[0]['coords'])
+        t_long = info['geo']['t3']
+        t_trans = info['geo']['t2']
+        
+        rect_col = patches.Rectangle(
+            (dist_x - t_long/2, -t_trans/2), t_long, t_trans, 
+            linewidth=1, edgecolor='darkred', facecolor='red', alpha=0.7,
+            label=f"Col {info['id']}" if i == 0 else ""
+        )
+        ax.add_patch(rect_col)
+        ax.text(dist_x, t_trans/2 + 0.05, f"N-{info['id']}", ha='center', fontweight='bold')
+
+    # 3. Marcar Centro Geométrico (Cx_real) y Resultante (xr)
+    ax.scatter([Cx_real], [0], color='blue', marker='x', s=100, label='Centro Geométrico (Cx)')
+    ax.scatter([xr], [yr], color='green', marker='o', s=100, label='Resultante (Xr)')
+    
+    # Configuración de ejes
+    ax.set_aspect('equal', adjustable='box')
+    ax.axhline(0, color='black', lw=0.5, ls='--') # Eje longitudinal
+    ax.set_title("Vista en Planta de la Zapata (Ejes Locales)", fontsize=14)
+    ax.set_xlabel("Longitud (m)")
+    ax.set_ylabel("Ancho (m)")
+    ax.grid(True, linestyle=':', alpha=0.6)
+    ax.legend(loc='upper right', fontsize='small')
+    
+    # Ajustar límites de vista
+    ax.set_xlim(x_min_zap - 0.5, x_min_zap + L + 0.5)
+    ax.set_ylim(-B/2 - 0.5, B/2 + 0.5)
+    
+    return fig
 
 # --- 1. PROCESAMIENTO DE DATOS ---
 def procesar_csv_etabs(file):
