@@ -175,11 +175,15 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                 res_s = engine.procesar_geometria_multicolumna(info_nodos, key_reac='reac_s')
                 
                 # Excentricidades relativas al centro geométrico ajustado por Deltas
-                # Distancia de resultante al borde izquierdo = x_res + s1
-                pos_x_res = res_s['x_resultante'] + s1
-                e_L = abs(Cx_real - pos_x_res)
-                e_T = abs(Cy_real - 0.0) # Se podría incluir Mx rotado aquí
+                # Distancia de resultante al Nodo 1 = x_res
+                e_L = abs(Cx_real - res_s['x_resultante'])
                 
+                # e_T total = Excentricidad geométrica + Excentricidad por momentos locales
+                # res_s['m_trans_total'] es el momento que calculamos en engine que hace volcar en B
+                e_momento_T = abs(res_s['m_trans_total'] / res_s['R_total'])
+                # e_T para la tabla de la memoria
+                e_T = abs(Cy_real) + e_momento_T
+                                
                 # Datos para la función del motor
                 metricas = engine.calcular_metricas_memoria(
                     L_zapata, B_optimo, res_s, q_adm - (24*H_prelim), 
