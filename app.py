@@ -154,13 +154,40 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             # Posición centro zapata respecto a N1 = Cx_real
             e_L_m = abs(Cx_real - xr)
             
-            B_optimo = engine.optimizar_ancho_B(
-                L_zapata, 
-                res_m['R_total'], 
-                e_L_m * res_m['R_total'], 
-                q_neto, 
-                B_min
-            )
+            # --- D. DETERMINACIÓN DEL ANCHO B (ENVOLVENTE) ---
+            # En lugar de optimizar solo para la maestra, buscamos el B que cumpla para TODAS
+            anchos_necesarios = []
+            
+            for cb in combs_servicio:
+                # Extraemos reacciones de esta combinación específica
+                reacs_temp = {}
+                for info in info_nodos:
+                    r_s = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','') == info['id']) & 
+                               (df_r[col_comb] == cb)].iloc[0]
+                    # Guardamos temporalmente para el motor
+                    info['reac_temp'] = {'FZ': r_s[col_fz], 'MX': r_s[col_mx], 'MY': r_s[col_my]}
+                
+                # Calculamos la estática de esta combinación
+                res_s = engine.procesar_geometria_multicolumna(info_nodos, key_reac='reac_temp')
+                
+                # Excentricidad longitudinal de ESTA combinación respecto al centro que definimos
+                e_L_s = abs(Cx_real - res_s['x_resultante'])
+                M_long_s = e_L_s * res_s['R_total']
+                M_trans_s = res_s['m_trans_total']
+                
+                # Buscamos el B necesario para esta combinación
+                B_comb = engine.optimizar_ancho_B(
+                    L_zapata, 
+                    res_s['R_total'], 
+                    M_long_s, 
+                    M_trans_s, 
+                    q_neto, 
+                    B_min
+                )
+                anchos_necesarios.append(B_comb)
+
+            # El B_optimo final es el más grande de todos los requeridos
+            B_optimo = max(anchos_necesarios)
 
             # E. Memoria de Presiones (Envolvente)
             st.subheader("📑 Memoria de Verificación de Presiones y Centroides")
