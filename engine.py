@@ -197,7 +197,7 @@ def calcular_metricas_memoria(L, B, res_s, q_limite, comb_nombre, comb_maestra, 
     # 2. Presiones finales (Incluyendo momentos de excentricidad y momentos locales rotados)
     # M_alrededor_T (longitudinal) = P * e_L
     # M_alrededor_L (transversal) = Momento local rotado + P * e_T
-    s_max, s_min = _presiones_4_esquinas(
+    s_max, s_min = calcular_presiones_4_esquinas(
         L, B, res_s['R_total'], 
         e_L * res_s['R_total'], 
         abs(res_s['m_trans_total']) + (e_T * res_s['R_total'])
