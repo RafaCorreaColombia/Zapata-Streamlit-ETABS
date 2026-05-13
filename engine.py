@@ -223,6 +223,37 @@ def calcular_metricas_memoria(L, B, res_s, q_limite, comb_nombre, comb_maestra, 
 
 # --- 6. VERIFICACIONES DE DISEÑO ---
 
+def obtener_trapecio_diseno_u(L, B, Cx_real, P_total, M_long, M_trans):
+    """
+    Evalúa las presiones en y = ±B/4 para encontrar la franja crítica
+    y retorna los esfuerzos en los extremos longitudinales (x=0 y x=L de la zapata).
+    """
+    # Coordenadas de los extremos de la zapata respecto al Nodo 1
+    x_izq = Cx_real - L/2
+    x_der = Cx_real + L/2
+    y_sensor = B / 4
+    
+    # 1. Evaluamos en los 4 sensores (esquinas de las franjas B/2 centrales de cada mitad)
+    q_norte_izq = calcular_q_en_punto(x_izq,  y_sensor, L, B, Cx_real, P_total, M_long, M_trans)
+    q_norte_der = calcular_q_en_punto(x_der,  y_sensor, L, B, Cx_real, P_total, M_long, M_trans)
+    q_sur_izq   = calcular_q_en_punto(x_izq, -y_sensor, L, B, Cx_real, P_total, M_long, M_trans)
+    q_sur_der   = calcular_q_en_punto(x_der, -y_sensor, L, B, Cx_real, P_total, M_long, M_trans)
+    
+    # 2. Decisión de la franja ganadora (la que tenga mayor promedio de presión)
+    if (q_norte_izq + q_norte_der) > (q_sur_izq + q_sur_der):
+        qu_izq, qu_der = q_norte_izq, q_norte_der
+        franja = "Norte (+B/4)"
+    else:
+        qu_izq, qu_der = q_sur_izq, q_sur_der
+        franja = "Sur (-B/4)"
+        
+    return {
+        'qu_izq': qu_izq, 
+        'qu_der': qu_der, 
+        'franja': franja
+    }
+
+
 def calcular_secciones_criticas(dist_ejes, g1, g2, H, b1, b2):
     d = H - 0.075
     def bo_calc(t3, t2, d_val, borde):
