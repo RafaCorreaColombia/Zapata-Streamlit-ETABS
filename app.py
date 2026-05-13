@@ -20,7 +20,7 @@ st.sidebar.header("1. Parámetros de Suelo y Concreto")
 q_adm = st.sidebar.number_input("Esfuerzo Admisible Neto (kN/m²)", value=250.0)
 fc = st.sidebar.selectbox("f'c Concreto (MPa)", [21, 28, 35], index=1)
 factor_h = st.sidebar.slider("Relación H vs L_ejes (1/X)", 6, 12, 8)
-vuelo_usr = st.sidebar.number_input("Vuelo mínimo (m)", value=0.0, step=0.05)
+vuelo_usr = st.sidebar.number_input("Vuelo mín. Longitudinal (m)", value=0.0, step=0.05)
 vuelo_B_usr = st.sidebar.slider("Vuelo mín. Transversal (m)", 0.0, 1.0, 0.00, 0.025, 
                                help="Añade un vuelo extra a ambos lados del eje de las columnas (sentido B).")
 
