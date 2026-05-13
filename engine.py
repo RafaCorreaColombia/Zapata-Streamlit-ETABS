@@ -222,13 +222,13 @@ def calcular_metricas_memoria(L, B, res_s, q_limite, comb_nombre, comb_maestra, 
     }
 
 # --- 6. VERIFICACIONES DE DISEÑO ---
-def calcular_q_en_punto(x, y, L, B, Cx_real, P, M_long, M_trans):
+def calcular_q_en_punto(x, y, L, B, Cx_real, Cy_real, P, M_long, M_trans):
     A = L * B
     It = (B * L**3) / 12
     Il = (L * B**3) / 12
     # x_rel es la distancia del punto al centro de la zapata (Cx_real)
     x_rel = x - Cx_real
-    y_rel = y # El eje Y ya está centrado en 0
+    y_rel = y - Cy_real
     
     q = (abs(P)/A) + (M_long * x_rel / It) + (abs(M_trans) * y_rel / Il)
     return max(0, q) # No permitimos presiones negativas (tracción) en el diseño
