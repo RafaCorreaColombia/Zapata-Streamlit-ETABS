@@ -243,12 +243,51 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             
             st.caption(f"Nota: El origen (0,0) está ubicado en el centro del primer nodo seleccionado (Nodo {nodos_ord[0]}).")
 
-            # --- NUEVA SECCIÓN: DISEÑO ESTRUCTURAL (COMB. ÚLTIMAS) ---
+            # --- F DISEÑO ESTRUCTURAL (COMB. ÚLTIMAS) ---
             st.markdown("---")
             st.subheader("🛡️ Verificación de Cortante y Punzonamiento (Estado Límite)")
             
             # Usamos el espesor H preliminar
             d = H_prelim - 0.075
+
+            # --- F. ANÁLISIS DE COMBINACIONES ÚLTIMAS (DISEÑO) ---
+            resultados_u = []
+            
+            for cb_u in combs_ultimas:
+                # 1. Cargar reacciones de la combinación última cb_u
+                reacs_u = {}
+                for info in info_nodos:
+                    # Extraer del DataFrame (suponiendo que ya filtraste df_r_u)
+                    r_u = df_r_u[(df_r_u[col_nodo_r].astype(str).str.replace('.0','') == info['id']) & 
+                                 (df_r_u[col_comb] == cb_u)].iloc[0]
+                    info['reac_u'] = {'FZ': r_u[col_fz], 'MX': r_u[col_mx], 'MY': r_u[col_my]}
+                
+                # 2. Estática de la combinación
+                res_u = engine.procesar_geometria_multicolumna(info_nodos, key_reac='reac_u')
+                
+                # 3. Obtener trapecio de diseño según tu lógica de B/4
+                e_L_u = abs(Cx_real - res_u['x_resultante'])
+                M_long_u = e_L_u * res_u['R_total']
+                
+                trapecio = engine.obtener_trapecio_diseno_u(
+                    L_zapata, B_optimo, Cx_real, 
+                    res_u['R_total'], M_long_u, res_u['m_trans_total']
+                )
+                
+                # 4. Guardar todo el paquete de datos de esta combinación
+                resultados_u.append({
+                    'comb': cb_u,
+                    'R_total': res_u['R_total'],
+                    'qu_izq': trapecio['qu_izq'],
+                    'qu_der': trapecio['qu_der'],
+                    'franja': trapecio['franja'],
+                    'x_res': res_u['x_resultante'],
+                    'm_trans': res_u['m_trans_total']
+                })
+            
+            # Convertir a DataFrame para tener una "Tabla Maestra de Diseño"
+            df_diseno_u = pd.DataFrame(resultados_u)
+            
             
             # Para simplificar con 2 o 3 columnas, evaluamos el punzonamiento en cada una
             res_diseno_nodos = []
