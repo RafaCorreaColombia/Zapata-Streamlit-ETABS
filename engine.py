@@ -235,13 +235,13 @@ def calcular_q_en_punto(x, y, L, B, Cx_real, Cy_real, P, M_long, M_trans):
     q = (abs(P)/A) + (M_long * x_rel / It) + (abs(M_trans) * y_rel / Il)
     return max(0, q) # No permitimos presiones negativas (tracción) en el diseño
 
-def analizar_columna_punzonamiento(x_node, y_node, tL, tT, d, L_zap, B_zap, Cx_real, f_c):
+def analizar_columna_punzonamiento(x_node, y_node, tL, tT, d, L_zap, B_zap, Cx_real, Cy_real, f_c):
     """
     Calcula b0, Ac, Centroide y phiVc para una columna específica.
     """
     # 1. Límites de la zapata
     x_min, x_max = Cx_real - L_zap/2, Cx_real + L_zap/2
-    y_min, y_max = -B_zap/2, B_zap/2
+    y_min, y_max = Cy_real - B_zap/2, Cy_real + B_zap/2
     
     # 2. Límites teóricos de la falla (distancia d/2 de las caras)
     x1, x2 = x_node - (tL/2 + d/2), x_node + (tL/2 + d/2)
