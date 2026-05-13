@@ -283,7 +283,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                 geo = engine.analizar_columna_punzonamiento(
                     dist_x_rel, 0, # <-- Ahora usamos dist_x_rel en lugar de info['coords'][0]
                     info['geo']['t3'], info['geo']['t2'], # tL y tT
-                    d, L_zapata, B_optimo, Cx_real, fc
+                    d, L_zapata, B_optimo, Cx_real, Cy_real, fc
                 )
                 geometria_punzonamiento[info['id']] = geo
             
