@@ -119,7 +119,7 @@ def calcular_presiones_4_esquinas(L, B, P, M_alrededor_T, M_alrededor_L):
 def optimizar_ancho_B(L, P_total, M_long, M_trans, q_neto, B_min_fisico):
     B = np.ceil(B_min_fisico * 20) / 20
     while B < 15.0:
-        s_max, s_min = calcular_presiones_4_esquinas(L, B, P_total, M_long, M_trans)
+        s_max, s_min = _presiones_4_esquinas(L, B, P_total, M_long, M_trans)
         if s_max <= q_neto and s_min >= 0:
             return round(B, 2)
         B += 0.05
@@ -132,7 +132,7 @@ def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, Cy_real, xr, yr):
     # El centro de la zapata (en el eje X) está en Cx_real respecto al Nodo 1 (x=0)
     # Por lo tanto, el borde izquierdo de la zapata está en:
     x_inicio_zapata = Cx_real - (L / 2)
-    y_inicio_zapata = yr - (B / 2) # yr suele ser 0, centrado en el eje de los nodos
+    y_inicio_zapata = Cy_real - (B / 2) # yr suele ser 0, centrado en el eje de los nodos
     
     # 1. Dibujar Contorno de la Zapata
     rect_zapata = patches.Rectangle(
@@ -185,7 +185,7 @@ def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, Cy_real, xr, yr):
 
 # --- 5. MÉTRICAS PARA MEMORIA DE CÁLCULO ---
 
-def calcular_metricas_memoria(L, B, res_s, q_limite, comb_nombre, comb_maestra, e_L, e_T):
+def _metricas_memoria(L, B, res_s, q_limite, comb_nombre, comb_maestra, e_L, e_T):
     """
     Calcula excentricidades y deltas de presión para la memoria.
     e_L y e_T vienen calculados desde app.py incluyendo los Deltas del usuario.
@@ -197,7 +197,7 @@ def calcular_metricas_memoria(L, B, res_s, q_limite, comb_nombre, comb_maestra, 
     # 2. Presiones finales (Incluyendo momentos de excentricidad y momentos locales rotados)
     # M_alrededor_T (longitudinal) = P * e_L
     # M_alrededor_L (transversal) = Momento local rotado + P * e_T
-    s_max, s_min = calcular_presiones_4_esquinas(
+    s_max, s_min = _presiones_4_esquinas(
         L, B, res_s['R_total'], 
         e_L * res_s['R_total'], 
         abs(res_s['m_trans_total']) + (e_T * res_s['R_total'])
@@ -308,10 +308,10 @@ def obtener_trapecio_diseno_u(L, B, Cx_real, P_total, M_long, M_trans):
     y_sensor = B / 4
     
     # 1. Evaluamos en los 4 sensores (esquinas de las franjas B/2 centrales de cada mitad)
-    q_norte_izq = calcular_q_en_punto(x_izq,  y_sensor, L, B, Cx_real, P_total, M_long, M_trans)
-    q_norte_der = calcular_q_en_punto(x_der,  y_sensor, L, B, Cx_real, P_total, M_long, M_trans)
-    q_sur_izq   = calcular_q_en_punto(x_izq, -y_sensor, L, B, Cx_real, P_total, M_long, M_trans)
-    q_sur_der   = calcular_q_en_punto(x_der, -y_sensor, L, B, Cx_real, P_total, M_long, M_trans)
+    q_norte_izq = calcular_q_en_punto(x_izq,  y_sensor, L, B, Cx_real, Cy_real, P_total, M_long, M_trans)
+    q_norte_der = calcular_q_en_punto(x_der,  y_sensor, L, B, Cx_real, Cy_real, P_total, M_long, M_trans)
+    q_sur_izq   = calcular_q_en_punto(x_izq, -y_sensor, L, B, Cx_real, Cy_real, P_total, M_long, M_trans)
+    q_sur_der   = calcular_q_en_punto(x_der, -y_sensor, L, B, Cx_real, Cy_real, P_total, M_long, M_trans)
     
     # 2. Decisión de la franja ganadora (la que tenga mayor promedio de presión)
     if (q_norte_izq + q_norte_der) > (q_sur_izq + q_sur_der):
