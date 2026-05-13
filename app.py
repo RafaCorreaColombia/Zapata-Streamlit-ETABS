@@ -231,6 +231,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             
             # xr de la maestra para el dibujo
             xr_maestra = res_m['x_resultante']
+            yr_maestra = res_m['y_resultante']
             
             # Generar el gráfico usando la función de engine
             figura = engine.generar_planta_zapata(
