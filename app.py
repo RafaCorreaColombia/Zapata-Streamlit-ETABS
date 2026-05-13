@@ -248,10 +248,21 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             st.subheader("🛡️ Verificación de Cortante y Punzonamiento (Estado Límite)")
             
             # Usamos el espesor H preliminar
-            d = H_prelim - 0.075
+            d = H_prelim - 0.075 - .01
 
             # --- F. ANÁLISIS DE COMBINACIONES ÚLTIMAS (DISEÑO) ---
             resultados_u = []
+
+            # En app.py, antes del bucle de combinaciones últimas:     
+            geometria_punzonamiento = {}
+            
+            for info in info_nodos:
+                geo = analizar_columna_punzonamiento(
+                    info['coords'][0], 0, # x_node y y_node (centrado)
+                    info['geo']['t3'], info['geo']['t2'], # tL y tT
+                    d, L_zapata, B_optimo, Cx_real, fc
+                )
+                geometria_punzonamiento[info['id']] = geo
             
             for cb_u in combs_ultimas:
                 # 1. Cargar reacciones de la combinación última cb_u
@@ -288,7 +299,67 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             # Convertir a DataFrame para tener una "Tabla Maestra de Diseño"
             df_diseno_u = pd.DataFrame(resultados_u)
             
+            # --- G. CHEQUEO DE PUNZONAMIENTO (ENVOLVENTE POR COLUMNA) ---
+            st.subheader("🛡️ Verificación de Punzonamiento ( punching shear)")
             
+            resumen_punzonamiento = []
+            
+            # Iteramos por cada columna
+            for info in info_nodos:
+                col_id = info['id']
+                geo_p = geometria_punzonamiento[col_id] # Recuperamos la geometría calculada antes
+                
+                max_vu = -1e9
+                comb_critica_p = ""
+                qu_en_centroide_critico = 0
+                
+                # Buscamos en todas las combinaciones últimas cuál es la más exigente para esta columna
+                for cb_u in combs_ultimas:
+                    # 1. Obtener Pu de esta columna en esta combinación
+                    r_u = df_r_u[(df_r_u[col_nodo_r].astype(str).str.replace('.0','') == col_id) & 
+                                 (df_r_u[col_comb] == cb_u)].iloc[0]
+                    Pu_col = r_u[col_fz]
+                    
+                    # 2. Calcular presión en el centroide del área crítica (x_c, y=0)
+                    # Necesitamos recuperar los datos de la combinación para evaluar q
+                    res_u = engine.procesar_geometria_multicolumna(info_nodos, key_reac='reac_u') 
+                    # (Asegúrate de que info['reac_u'] esté cargado para cb_u como en el bucle anterior)
+                    
+                    e_L_u = abs(Cx_real - res_u['x_resultante'])
+                    M_long_u = e_L_u * res_u['R_total']
+                    
+                    q_cent = engine.calcular_q_en_punto(
+                        geo_p['xc'], 0, 
+                        L_zapata, B_optimo, Cx_real, 
+                        res_u['R_total'], M_long_u, res_u['m_trans_total']
+                    )
+                    
+                    # 3. Vu = Pu - (q_contacto * Area_critica)
+                    Vu_actual = Pu_col - (q_cent * geo_p['Ac'])
+                    
+                    if Vu_actual > max_vu:
+                        max_vu = Vu_actual
+                        comb_critica_p = cb_u
+                        qu_en_centroide_critico = q_cent
+            
+                # 4. Consolidar resultados de la columna
+                cumple = geo_p['phi_Vc'] > max_vu
+                resumen_punzonamiento.append({
+                    "Columna": col_id,
+                    "Tipo": f"αs={geo_p['alpha_s']}",
+                    "b0 [m]": round(geo_p['b0'], 2),
+                    "Ac [m²]": round(geo_p['Ac'], 3),
+                    "xc [m]": round(geo_p['xc'], 2),
+                    "φVc [kN]": round(geo_p['phi_Vc'], 2),
+                    "Vu Max [kN]": round(max_vu, 2),
+                    "Comb. Crítica": comb_critica_p,
+                    "Estado": "✅ OK" if cumple else "❌ FALLA"
+                })
+            
+            # Mostrar Tabla de Resultados
+            df_punz = pd.DataFrame(resumen_punzonamiento)
+            st.table(df_punz)
+
             # Para simplificar con 2 o 3 columnas, evaluamos el punzonamiento en cada una
             res_diseno_nodos = []
             for info in info_nodos:
