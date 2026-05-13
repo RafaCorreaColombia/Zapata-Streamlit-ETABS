@@ -286,7 +286,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                 M_long_u = e_L_u * res_u['R_total']
                 
                 trapecio = engine.obtener_trapecio_diseno_u(
-                    L_zapata, B_optimo, Cx_real, 
+                    L_zapata, B_optimo, Cx_real, Cy_real, 
                     res_u['R_total'], M_long_u, res_u['m_trans_total']
                 )
                 
