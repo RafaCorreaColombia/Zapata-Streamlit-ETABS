@@ -332,7 +332,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                     
                     q_cent = engine.calcular_q_en_punto(
                         geo_p['xc'], Cy_real, 
-                        L_zapata, B_optimo, Cx_real, 
+                        L_zapata, B_optimo, Cx_real, Cy_real, 
                         res_u['R_total'], M_long_u, res_u['m_trans_total']
                     )
                     
