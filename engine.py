@@ -185,7 +185,7 @@ def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, Cy_real, xr, yr):
 
 # --- 5. MÉTRICAS PARA MEMORIA DE CÁLCULO ---
 
-def _metricas_memoria(L, B, res_s, q_limite, comb_nombre, comb_maestra, e_L, e_T):
+def calcular_metricas_memoria(L, B, res_s, q_limite, comb_nombre, comb_maestra, e_L, e_T):
     """
     Calcula excentricidades y deltas de presión para la memoria.
     e_L y e_T vienen calculados desde app.py incluyendo los Deltas del usuario.
