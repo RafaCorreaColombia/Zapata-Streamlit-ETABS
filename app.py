@@ -267,7 +267,6 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
 
             # --- F DISEÑO ESTRUCTURAL (COMB. ÚLTIMAS) ---
             st.markdown("---")
-            st.subheader("🛡️ Verificación de Cortante y Punzonamiento (Estado Límite)")
             
             # Usamos el espesor H preliminar
             d = H_prelim - 0.075 - .01
