@@ -238,8 +238,10 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                 B_optimo, 
                 info_nodos, 
                 s1, 
-                Cx_real, Cy_real,
-                xr_maestra
+                Cx_real, 
+                Cy_real, 
+                xr_maestra,
+                yr_maestra
             )
             
             # Mostrar en Streamlit
