@@ -53,6 +53,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
         nodos_sel = st.multiselect("Nodos de Columnas:", opciones_nodos, max_selections=3)
     with c2:
         combs_servicio = st.multiselect("Combinaciones de SERVICIO:", df_r[col_comb].unique())
+        combs_ultimas = st.multiselect("Combinaciones de DISEÑO (Últimas):", df_r[col_comb].unique())
 
     if len(nodos_sel) >= 2 and combs_servicio:
         # 1. Preparar info de nodos y ordenar
@@ -257,7 +258,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             geometria_punzonamiento = {}
             
             for info in info_nodos:
-                geo = analizar_columna_punzonamiento(
+                geo = engine.analizar_columna_punzonamiento(
                     info['coords'][0], 0, # x_node y y_node (centrado)
                     info['geo']['t3'], info['geo']['t2'], # tL y tT
                     d, L_zapata, B_optimo, Cx_real, fc
@@ -265,15 +266,13 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                 geometria_punzonamiento[info['id']] = geo
             
             for cb_u in combs_ultimas:
-                # 1. Cargar reacciones de la combinación última cb_u
-                reacs_u = {}
-                for info in info_nodos:
-                    # Extraer del DataFrame (suponiendo que ya filtraste df_r_u)
-                    r_u = df_r_u[(df_r_u[col_nodo_r].astype(str).str.replace('.0','') == info['id']) & 
-                                 (df_r_u[col_comb] == cb_u)].iloc[0]
-                    info['reac_u'] = {'FZ': r_u[col_fz], 'MX': r_u[col_mx], 'MY': r_u[col_my]}
+                # 1. ACTUALIZAR REACCIONES PARA ESTA COMBINACIÓN ESPECÍFICA
+                for info_act in info_nodos:
+                    r_u_act = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','') == info_act['id']) & 
+                                   (df_r[col_comb] == cb_u)].iloc[0]
+                    info_act['reac_u'] = {'FZ': r_u_act[col_fz], 'MX': r_u_act[col_mx], 'MY': r_u_act[col_my]}
                 
-                # 2. Estática de la combinación
+                # 2. CALCULAR ESTÁTICA DE LA COMBINACIÓN
                 res_u = engine.procesar_geometria_multicolumna(info_nodos, key_reac='reac_u')
                 
                 # 3. Obtener trapecio de diseño según tu lógica de B/4
@@ -316,8 +315,8 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                 # Buscamos en todas las combinaciones últimas cuál es la más exigente para esta columna
                 for cb_u in combs_ultimas:
                     # 1. Obtener Pu de esta columna en esta combinación
-                    r_u = df_r_u[(df_r_u[col_nodo_r].astype(str).str.replace('.0','') == col_id) & 
-                                 (df_r_u[col_comb] == cb_u)].iloc[0]
+                    r_u = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','') == col_id) & 
+                                 (df_r[col_comb] == cb_u)].iloc[0]
                     Pu_col = r_u[col_fz]
                     
                     # 2. Calcular presión en el centroide del área crítica (x_c, y=0)
@@ -360,37 +359,6 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             df_punz = pd.DataFrame(resumen_punzonamiento)
             st.table(df_punz)
 
-            # Para simplificar con 2 o 3 columnas, evaluamos el punzonamiento en cada una
-            res_diseno_nodos = []
-            for info in info_nodos:
-                # Buscamos la peor reacción de diseño (Última) para esta columna
-                max_fz_u = 0
-                max_comb_u = ""
-                for cb_u in combs_diseno:
-                    r_u = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','') == info['id']) & (df_r[col_comb] == cb_u)].iloc[0]
-                    if abs(r_u[col_fz]) > max_fz_u:
-                        max_fz_u = abs(r_u[col_fz])
-                        max_comb_u = cb_u
-                
-                # Capacidad de Punzonamiento (Simplificada para memoria)
-                # bo depende de si es borde o no
-                es_b = dict_bordes[info['id']]
-                t3, t2 = info['geo']['t3'], info['geo']['t2']
-                bo = (2*(t3 + d/2) + (t2 + d)) if es_b else (2*(t3 + d) + 2*(t2 + d))
-                
-                phi_v = 0.75
-                Vn = (0.33 * np.sqrt(fc) * (bo * 1000) * (d * 1000)) / 1000
-                Vu = max_fz_u # Simplificación: carga puntual vs reacción del suelo
-                
-                res_diseno_nodos.append({
-                    "Columna": info['geo']['label'],
-                    "Comb. Crítica": max_comb_u,
-                    "Vu (kN)": round(Vu, 1),
-                    "φVn (kN)": round(phi_v * Vn, 1),
-                    "Estado": "✅ OK" if Vu < phi_v * Vn else "❌ FALLA (H insuficiente)"
-                })
-            
-            st.table(pd.DataFrame(res_diseno_nodos))
             st.success(f"### ✅ Memoria Generada Exitosamente")
             
             # F. Resumen de Ingeniería
