@@ -19,7 +19,8 @@ def encontrar_columna(lista_columnas, keywords):
 st.sidebar.header("1. Parámetros de Suelo y Concreto")
 q_adm = st.sidebar.number_input("Esfuerzo Admisible Neto (kN/m²)", value=250.0)
 fc = st.sidebar.selectbox("f'c Concreto (MPa)", [21, 28, 35], index=1)
-factor_h = st.sidebar.slider("Relación H vs L_ejes (1/X)", 6, 12, 8)
+delta_H_usr = st.sidebar.slider("H adicional sobre L/8 (m)", 0.0, 0.50, 0.00, 0.05, 
+                               help="Suma espesor al H inicial (L/8) para cumplir punzonamiento.")
 vuelo_usr = st.sidebar.number_input("Vuelo mín. Longitudinal (m)", value=0.0, step=0.05)
 vuelo_B_usr = st.sidebar.slider("Vuelo mín. Transversal (m)", 0.0, 1.0, 0.00, 0.025, 
                                help="Añade un vuelo extra a ambos lados del eje de las columnas (sentido B).")
@@ -147,7 +148,11 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             Cy_real = 0.0 + delta_T
 
             # --- D. ESPESOR Y ANCHO B ---
-            H_prelim = np.ceil((res_m['dist_max_ejes'] / factor_h) * 20) / 20
+            # 1. Calculamos el H sugerido por norma/preliminar (L_ejes / 8)
+            H_base = np.ceil((res_m['dist_max_ejes'] / 8) * 20) / 20
+            # 2. El H real de cálculo es el base + el delta del usuario
+            H_prelim = H_base + delta_H_usr
+            
             q_neto = q_adm - (24.0 * H_prelim)
             ancho_col_max = max([n['geo']['t2'] for n in info_nodos])
             B_min = ancho_col_max + (2 * vuelo_B_usr) # B_min para no romper lo que sigue
@@ -270,6 +275,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             
             # Usamos el espesor H preliminar
             d = H_prelim - 0.075 - .01
+            st.write(f"📏 Espesor de Cálculo: **H = {H_prelim:.2f} m** (Base: {H_base:.2f} m + ΔH: {delta_H_usr:.2f} m)")
 
             # --- F. ANÁLISIS DE COMBINACIONES ÚLTIMAS (DISEÑO) ---
             resultados_u = []
