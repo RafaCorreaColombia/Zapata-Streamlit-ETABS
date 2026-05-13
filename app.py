@@ -21,6 +21,8 @@ q_adm = st.sidebar.number_input("Esfuerzo Admisible Neto (kN/m²)", value=250.0)
 fc = st.sidebar.selectbox("f'c Concreto (MPa)", [21, 28, 35], index=1)
 factor_h = st.sidebar.slider("Relación H vs L_ejes (1/X)", 6, 12, 8)
 vuelo_usr = st.sidebar.number_input("Vuelo mínimo (m)", value=0.0, step=0.05)
+vuelo_B_usr = st.sidebar.slider("Vuelo mín. Transversal (m)", 0.0, 1.0, 0.00, 0.025, 
+                               help="Añade un vuelo extra a ambos lados del eje de las columnas (sentido B).")
 
 st.sidebar.header("2. Carga de Archivos ETABS")
 with st.sidebar:
@@ -147,7 +149,8 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             # --- D. ESPESOR Y ANCHO B ---
             H_prelim = np.ceil((res_m['dist_max_ejes'] / factor_h) * 20) / 20
             q_neto = q_adm - (24.0 * H_prelim)
-            B_min = max([n['geo']['t2'] for n in info_nodos]) + 0.20
+            ancho_col_max = max([n['geo']['t2'] for n in info_nodos])
+            B_min = ancho_col_max + (2 * vuelo_B_usr) # B_min para no romper lo que sigue
             
             # AHORA SÍ: e_L_m ya conoce a s1 porque lo definimos arriba
             # La excentricidad es la distancia entre el centro real de la zapata y la carga
@@ -328,7 +331,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                     M_long_u = e_L_u * res_u['R_total']
                     
                     q_cent = engine.calcular_q_en_punto(
-                        geo_p['xc'], 0, 
+                        geo_p['xc'], Cy_real, 
                         L_zapata, B_optimo, Cx_real, 
                         res_u['R_total'], M_long_u, res_u['m_trans_total']
                     )
