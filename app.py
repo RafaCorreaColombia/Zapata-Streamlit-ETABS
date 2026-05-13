@@ -149,7 +149,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
 
             # --- D. ESPESOR Y ANCHO B ---
             # 1. Calculamos el H sugerido por norma/preliminar (L_ejes / 8)
-            H_base = np.ceil((res_m['dist_max_ejes'] / 8) * 20) / 20
+            H_base = min(0.40,np.ceil((res_m['dist_max_ejes'] / 8) * 20) / 20)
             # 2. El H real de cálculo es el base + el delta del usuario
             H_prelim = H_base + delta_H_usr
             
