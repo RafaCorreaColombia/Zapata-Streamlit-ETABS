@@ -297,7 +297,7 @@ def analizar_columna_punzonamiento(x_node, y_node, tL, tT, d, L_zap, B_zap, Cx_r
     }
 
 
-def obtener_trapecio_diseno_u(L, B, Cx_real, P_total, M_long, M_trans):
+def obtener_trapecio_diseno_u(L, B, Cx_real, Cy_real, P_total, M_long, M_trans):
     """
     Evalúa las presiones en y = ±B/4 para encontrar la franja crítica
     y retorna los esfuerzos en los extremos longitudinales (x=0 y x=L de la zapata).
