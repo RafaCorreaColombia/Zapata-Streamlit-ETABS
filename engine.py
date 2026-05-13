@@ -222,6 +222,67 @@ def calcular_metricas_memoria(L, B, res_s, q_limite, comb_nombre, comb_maestra, 
     }
 
 # --- 6. VERIFICACIONES DE DISEÑO ---
+def analizar_columna_punzonamiento(x_node, y_node, tL, tT, d, L_zap, B_zap, Cx_real, f_c):
+    """
+    Calcula b0, Ac, Centroide y phiVc para una columna específica.
+    """
+    # 1. Límites de la zapata
+    x_min, x_max = Cx_real - L_zap/2, Cx_real + L_zap/2
+    y_min, y_max = -B_zap/2, B_zap/2
+    
+    # 2. Límites teóricos de la falla (distancia d/2 de las caras)
+    x1, x2 = x_node - (tL/2 + d/2), x_node + (tL/2 + d/2)
+    y1, y2 = y_node - (tT/2 + d/2), y_node + (tT/2 + d/2)
+    
+    # 3. Verificación de bordes (Truncamiento)
+    es_borde_izq = x1 < x_min
+    es_borde_der = x2 > x_max
+    es_borde_inf = y1 < y_min
+    es_borde_sup = y2 > y_max
+    
+    # Recorte a los límites reales de la zapata
+    x1_r, x2_r = max(x1, x_min), min(x2, x_max)
+    y1_r, y2_r = max(y1, y_min), min(y2, y_max)
+    
+    # 4. Cálculo de b0 (Perímetro crítico real)
+    # Solo sumamos los lados que NO están en contacto con el borde del aire
+    b0 = 0
+    lados_libres = 0
+    if not es_borde_izq: b0 += (y2_r - y1_r); lados_libres += 1
+    if not es_borde_der: b0 += (y2_r - y1_r); lados_libres += 1
+    if not es_borde_inf: b0 += (x2_r - x1_r); lados_libres += 1
+    if not es_borde_sup: b0 += (x2_r - x1_r); lados_libres += 1
+    
+    # 5. Identificación de Alpha_s
+    # 0 bordes = Interior (40), 1 borde = Borde (30), 2 bordes = Esquina (20)
+    num_bordes = sum([es_borde_izq, es_borde_der, es_borde_inf, es_borde_sup])
+    alpha_s = 40 if num_bordes == 0 else (30 if num_bordes == 1 else 20)
+    
+    # 6. Parámetros de resistencia (NSR-10 / ACI 318)
+    beta = max(tL, tT) / min(tL, tT) # Relación de aspecto de la columna
+    
+    # Las tres ecuaciones de Vc (en Newtons, luego pasamos a kN)
+    # Suponiendo f_c en MPa, b0 y d en mm
+    b0_mm = b0 * 1000
+    d_mm = d * 1000
+    f_c_sqrt = f_c**0.5
+    
+    vc1 = 0.33 * f_c_sqrt * b0_mm * d_mm
+    vc2 = 0.17 * (1 + 2/beta) * f_c_sqrt * b0_mm * d_mm
+    vc3 = 0.083 * (2 + (alpha_s * d_mm / b0_mm)) * f_c_sqrt * b0_mm * d_mm
+    
+    Vc_nominal = min(vc1, vc2, vc3) / 1000 # Pasar a kN
+    phi_Vc = 0.75 * Vc_nominal
+    
+    return {
+        'b0': b0,
+        'Ac': (x2_r - x1_r) * (y2_r - y1_r),
+        'xc': (x1_r + x2_r) / 2,
+        'alpha_s': alpha_s,
+        'phi_Vc': phi_Vc,
+        'num_bordes': num_bordes
+    }
+
 
 def obtener_trapecio_diseno_u(L, B, Cx_real, P_total, M_long, M_trans):
     """
@@ -254,16 +315,6 @@ def obtener_trapecio_diseno_u(L, B, Cx_real, P_total, M_long, M_trans):
     }
 
 
-def calcular_secciones_criticas(dist_ejes, g1, g2, H, b1, b2):
-    d = H - 0.075
-    def bo_calc(t3, t2, d_val, borde):
-        if borde: return (2*(t3 + d_val/2)) + (t2 + d_val)
-        return 2*(t3 + d_val) + 2*(t2 + d_val)
-    return {
-        'd': d,
-        'bo1': bo_calc(g1['t3'], g1['t2'], d, b1),
-        'bo2': bo_calc(g2['t3'], g2['t2'], d, b2)
-    }
 
 def diseno_refuerzo(Mu, d, B, fc, fy=420):
     phi, b, d_mm = 0.9, B * 1000, d * 1000
