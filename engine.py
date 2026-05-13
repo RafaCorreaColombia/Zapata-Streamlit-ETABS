@@ -85,12 +85,14 @@ def procesar_geometria_multicolumna(lista_nodos, key_reac='reac'):
         m_t_total += ml
         
     x_res = m_l_total / r_total
+    y_resultante_carga = m_t_total / r_total
     
     return {
         'L_ejes': np.linalg.norm(p_fin - p_ref),
         'dist_max_ejes': np.linalg.norm(p_fin - p_ref),
         'R_total': r_total,
         'x_resultante': x_res,
+        'y_resultante': y_resultante_carga,
         'm_trans_total': m_t_total, 
         'alpha': alpha
     }
@@ -123,7 +125,7 @@ def optimizar_ancho_B(L, P_total, M_long, M_trans, q_neto, B_min_fisico):
         B += 0.05
     return round(B, 1)
 
-def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, xr, yr=0.0):
+def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, Cy_real, xr, yr=0.0):
     fig, ax = plt.subplots(figsize=(10, 6))
     
     # --- LÓGICA DE POSICIONAMIENTO ---
