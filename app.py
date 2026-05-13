@@ -246,6 +246,21 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             )
             
             # Mostrar en Streamlit
+            # --- TABLA DE AUDITORÍA GEOMÉTRICA ---
+            with st.expander("🔍 Auditoría de Bordes y Coordenadas"):
+                st.write(f"**Límites Zapata (Eje X):** [{Cx_real - L_zapata/2:.3f} m , {Cx_real + L_zapata/2:.3f} m]")
+                audit_data = []
+                for info in info_nodos:
+                    dist_x = np.linalg.norm(info['coords'] - info_nodos[0]['coords'])
+                    audit_data.append({
+                        "Nodo": info['id'],
+                        "X Local [m]": round(dist_x, 3),
+                        "Cara Izq [m]": round(dist_x - info['geo']['t3']/2, 3),
+                        "Cara Der [m]": round(dist_x + info['geo']['t3']/2, 3),
+                        "Vuelo Der [m]": round((Cx_real + L_zapata/2) - (dist_x + info['geo']['t3']/2), 3)
+                    })
+                st.table(pd.DataFrame(audit_data))
+            
             st.pyplot(figura)
             
             st.caption(f"Nota: El origen (0,0) está ubicado en el centro del primer nodo seleccionado (Nodo {nodos_ord[0]}).")
@@ -264,8 +279,9 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             geometria_punzonamiento = {}
             
             for info in info_nodos:
+                dist_x_rel = np.linalg.norm(info['coords'] - info_nodos[0]['coords'])
                 geo = engine.analizar_columna_punzonamiento(
-                    info['coords'][0], 0, # x_node y y_node (centrado)
+                    dist_x_rel, 0, # <-- Ahora usamos dist_x_rel en lugar de info['coords'][0]
                     info['geo']['t3'], info['geo']['t2'], # tL y tT
                     d, L_zapata, B_optimo, Cx_real, fc
                 )
