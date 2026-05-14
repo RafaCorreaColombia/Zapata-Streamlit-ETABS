@@ -166,6 +166,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             # --- D. DETERMINACIÓN DEL ANCHO B (ENVOLVENTE) ---
             # En lugar de optimizar solo para la maestra, buscamos el B que cumpla para TODAS
             anchos_necesarios = []
+            puntos_servicio = [] # Inicializamos la lista aquí
             
             for cb in combs_servicio:
                 # Extraemos reacciones de esta combinación específica
@@ -178,6 +179,8 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                 
                 # Calculamos la estática de esta combinación
                 res_s = engine.procesar_geometria_multicolumna(info_nodos, key_reac='reac_temp')
+                # GUARDAMOS EL PUNTO PARA LA NUBE (xr, yr)
+                puntos_servicio.append((res_s['x_resultante'], res_s['y_resultante']))
                 
                 # Excentricidad longitudinal de ESTA combinación respecto al centro que definimos
                 e_L_s = abs(Cx_real - res_s['x_resultante'])
@@ -194,7 +197,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                     B_min
                 )
                 anchos_necesarios.append(B_comb)
-
+            
             # El B_optimo final es el más grande de todos los requeridos
             B_optimo = max(anchos_necesarios)
             if B_optimo >= 14.9:
@@ -250,6 +253,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                 Cy_real, 
                 xr_maestra,
                 yr_maestra
+                nube_puntos=puntos_servicio
             )
             
             # Mostrar en Streamlit
