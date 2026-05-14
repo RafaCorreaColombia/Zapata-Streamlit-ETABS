@@ -226,7 +226,7 @@ def calcular_metricas_memoria(L, B, res_s, q_limite, comb_nombre, comb_maestra, 
         "e_L (%)": round(ratio_eL, 2),
         "e_T (%)": round(ratio_eT, 2),
         "σ_max": round(s_max, 2),
-        "σ_min": round(s_min, 2) if s_min >=0 else f"{round(s_min, 2)} (Tracción)",
+        "σ_min": round(s_min, 2) if s_min >=0 else f"{round(s_min, 2)} (TRACCIÓN)",
         "ΔP (%)": round(diff_p, 2) if not tiene_traccion else "---",
         "Criterio E": "✅" if (ratio_eL <= c_e and ratio_eT <= c_e) else "⚠️",
         "Criterio P": estado_p
