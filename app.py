@@ -326,7 +326,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                     'qu_der': trapecio['qu_der'],
                     'franja': trapecio['franja'],
                     'x_res': res_u['x_resultante'],
-                    'm_trans': res_u['m_trans_total']
+                    'm_trans': res_u['m_trans_total'],
                     'info_reac': [{'x_rel': np.linalg.norm(n['coords'] - info_nodos[0]['coords']), 
                                    'Pu': n['reac_u']['FZ']} for n in info_nodos]
                 })
