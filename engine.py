@@ -389,8 +389,8 @@ def calcular_diagramas_estructurales(L, qu_izq, qu_der, info_nodos_reac, Cx_real
                 V_cols -= col['Pu']
                 M_cols -= col['Pu'] * (x - x_col)
         
-        cortantes.append(V_suelo + V_cols)
-        momentos.append(M_suelo + M_cols)
+        cortantes.append(V_suelo - V_cols)
+        momentos.append(M_suelo - M_cols)
         
     return x_coords, cortantes, momentos
 
