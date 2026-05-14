@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import engine
+import plotly.graph_objects as go
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Memoria de Cálculo - Zapata Multicolumna", layout="wide")
@@ -392,45 +393,62 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             df_punz = pd.DataFrame(resumen_punzonamiento)
             st.table(df_punz)
 
-
+            st.success(f"### ✅ Memoria Generada Exitosamente")
+            
+            
+            
             # --- En app.py, después de la tabla de punzonamiento ---
             
-            st.subheader("📈 Análisis de Solicitudes Longitudinales")
+            # --- En app.py ---
+
+            st.subheader("📈 Diagramas de Solicitudes (Estado Límite)")
             
-            # Para este ejemplo, tomaremos la primera combinación última 
-            # (Luego podemos hacer un selectbox para que el usuario elija cuál ver)
-            cb_ver = st.selectbox("Seleccionar Combinación para Diagramas:", combs_ultimas)
-            
-            # 1. Preparar datos de columnas para la estática
-            info_reac_u = []
-            for info in info_nodos:
-                r_u = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','') == info['id']) & 
-                           (df_r[col_comb] == cb_ver)].iloc[0]
-                dist_x_rel = np.linalg.norm(info['coords'] - info_nodos[0]['coords'])
-                info_reac_u.append({'x_rel': dist_x_rel, 'Pu': r_u[col_fz]})
-            
-            # 2. Obtener las presiones del trapecio (Ya lo tienes calculado arriba)
-            # Usaremos las de la franja crítica calculadas en 'trapecio'
-            
-            x_diag, v_diag, m_diag = engine.calcular_diagramas_estructurales(
-                L_zapata, trapecio['qu_izq'], trapecio['qu_der'], info_reac_u, Cx_real
-            )
-            
-            # 3. Dibujar con Plotly (para que sea interactivo)
-            import plotly.graph_objects as go
-            
+            # Usamos Plotly para permitir interactividad (hacer zoom, apagar/prender curvas)
             fig_v = go.Figure()
-            fig_v.add_trace(go.Scatter(x=x_diag, y=v_diag, fill='tozeroy', name='Cortante [kN]'))
-            fig_v.update_layout(title="Diagrama de Cortante V(x)", yaxis_title="V [kN]", xaxis_title="x [m]")
-            st.plotly_chart(fig_v, use_container_width=True)
-            
             fig_m = go.Figure()
-            fig_m.add_trace(go.Scatter(x=x_diag, y=m_diag, fill='tozeroy', name='Momento [kN-m]', line=dict(color='red')))
-            fig_m.update_layout(title="Diagrama de Momento M(x)", yaxis_title="M [kN-m]", xaxis_title="x [m]")
+            
+            # Colores para las curvas
+            colores = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3']
+            
+            # Iteramos sobre todas las combinaciones de diseño que el usuario seleccionó
+            for i, cb_u in enumerate(combs_ultimas):
+                # 1. Extraer Pu de cada columna para esta comb
+                info_reac_u = []
+                for info in info_nodos:
+                    # Buscamos la reacción grabada previamente en el bucle de punzonamiento
+                    # o la extraemos de nuevo si es necesario
+                    r_u = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','') == info['id']) & 
+                               (df_r[col_comb] == cb_u)].iloc[0]
+                    dist_x_rel = np.linalg.norm(info['coords'] - info_nodos[0]['coords'])
+                    info_reac_u.append({'x_rel': dist_x_rel, 'Pu': r_u[col_fz]})
+            
+                # 2. Obtener presiones de la franja crítica para esta combinación
+                # (Asumiendo que guardaste los resultados de 'obtener_trapecio_diseno_u' en un diccionario)
+                # Por ahora, usemos el 'trapecio' calculado en el bucle principal de diseño
+                
+                # 3. Calcular el diagrama
+                x_diag, v_diag, m_diag = engine.calcular_diagramas_estructurales(
+                    L_zapata, 
+                    qu_izq_comb, # Estos deben venir del bucle de diseño u
+                    qu_der_comb, 
+                    info_reac_u, 
+                    Cx_real
+                )
+                
+                # 4. Añadir a los gráficos
+                visible = 'legendonly' if i > 2 else True # Solo mostramos las primeras 3 para no saturar
+                
+                fig_v.add_trace(go.Scatter(x=x_diag, y=v_diag, name=cb_u, line=dict(width=1.5), visible=visible))
+                fig_m.add_trace(go.Scatter(x=x_diag, y=m_diag, name=cb_u, line=dict(width=1.5), visible=visible))
+            
+            # Ajustes de Layout
+            fig_v.update_layout(title="Envolvente de Cortante V(x)", yaxis_title="V [kN]", hovermode="x unified")
+            fig_m.update_layout(title="Envolvente de Momento M(x)", yaxis_title="M [kN-m]", hovermode="x unified")
+            
+            st.plotly_chart(fig_v, use_container_width=True)
             st.plotly_chart(fig_m, use_container_width=True)
 
             
-            st.success(f"### ✅ Memoria Generada Exitosamente")
             
             # F. Resumen de Ingeniería
             st.markdown("---")
