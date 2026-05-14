@@ -204,6 +204,8 @@ def calcular_metricas_memoria(L, B, res_s, q_limite, comb_nombre, comb_maestra, 
         e_L * res_s['R_total'], 
         abs(res_s['m_trans_total']) + (e_T * res_s['R_total'])
     )
+
+    tiene_traccion = s_min < 0
     
     # 3. Diferencia de presiones
     diff_p = ((s_max - s_min) / s_min * 100) if s_min > 0 else 999.0
@@ -212,17 +214,22 @@ def calcular_metricas_memoria(L, B, res_s, q_limite, comb_nombre, comb_maestra, 
     es_m = (comb_nombre == comb_maestra)
     c_e = 5.0 if es_m else 10.0
     c_p = 15.0 if es_m else 90.0
-    
+
+    if tiene_traccion:
+        estado_p = "❌ TRACCIÓN"
+    else:
+        estado_p = ("✅" if diff_p <= c_p else "⚠️") if es_m else "No aplica"
+        
     return {
         "Combinación": comb_nombre,
         "P (kN)": round(res_s['R_total'], 1),
         "e_L (%)": round(ratio_eL, 2),
         "e_T (%)": round(ratio_eT, 2),
         "σ_max": round(s_max, 2),
-        "σ_min": round(s_min, 2),
-        "ΔP (%)": round(diff_p, 2),
+        "σ_min": round(s_min, 2) if s_min >=0 else f"{round(s_min, 2)} (Tracción)",
+        "ΔP (%)": round(diff_p, 2) if not tiene_traccion else "---",
         "Criterio E": "✅" if (ratio_eL <= c_e and ratio_eT <= c_e) else "⚠️",
-        "Criterio P": "✅" if (not es_m or diff_p <= c_p) else "⚠️"
+        "Criterio P": estado_p
     }
 
 # --- 6. VERIFICACIONES DE DISEÑO ---
