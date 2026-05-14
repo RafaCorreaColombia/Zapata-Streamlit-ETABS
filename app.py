@@ -392,6 +392,44 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             df_punz = pd.DataFrame(resumen_punzonamiento)
             st.table(df_punz)
 
+
+            # --- En app.py, después de la tabla de punzonamiento ---
+            
+            st.subheader("📈 Análisis de Solicitudes Longitudinales")
+            
+            # Para este ejemplo, tomaremos la primera combinación última 
+            # (Luego podemos hacer un selectbox para que el usuario elija cuál ver)
+            cb_ver = st.selectbox("Seleccionar Combinación para Diagramas:", combs_ultimas)
+            
+            # 1. Preparar datos de columnas para la estática
+            info_reac_u = []
+            for info in info_nodos:
+                r_u = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','') == info['id']) & 
+                           (df_r[col_comb] == cb_ver)].iloc[0]
+                dist_x_rel = np.linalg.norm(info['coords'] - info_nodos[0]['coords'])
+                info_reac_u.append({'x_rel': dist_x_rel, 'Pu': r_u[col_fz]})
+            
+            # 2. Obtener las presiones del trapecio (Ya lo tienes calculado arriba)
+            # Usaremos las de la franja crítica calculadas en 'trapecio'
+            
+            x_diag, v_diag, m_diag = engine.calcular_diagramas_estructurales(
+                L_zapata, trapecio['qu_izq'], trapecio['qu_der'], info_reac_u, Cx_real
+            )
+            
+            # 3. Dibujar con Plotly (para que sea interactivo)
+            import plotly.graph_objects as go
+            
+            fig_v = go.Figure()
+            fig_v.add_trace(go.Scatter(x=x_diag, y=v_diag, fill='tozeroy', name='Cortante [kN]'))
+            fig_v.update_layout(title="Diagrama de Cortante V(x)", yaxis_title="V [kN]", xaxis_title="x [m]")
+            st.plotly_chart(fig_v, use_container_width=True)
+            
+            fig_m = go.Figure()
+            fig_m.add_trace(go.Scatter(x=x_diag, y=m_diag, fill='tozeroy', name='Momento [kN-m]', line=dict(color='red')))
+            fig_m.update_layout(title="Diagrama de Momento M(x)", yaxis_title="M [kN-m]", xaxis_title="x [m]")
+            st.plotly_chart(fig_m, use_container_width=True)
+
+            
             st.success(f"### ✅ Memoria Generada Exitosamente")
             
             # F. Resumen de Ingeniería
