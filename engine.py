@@ -190,6 +190,14 @@ def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, Cy_real, xr, yr, nube_p
     ax.set_ylim(y_inicio_zapata - 0.5, y_inicio_zapata + B + 0.5)
     
     plt.tight_layout()
+    
+    color_marco = '#444444' 
+    grosor_delgado = 0.5  # El valor por defecto suele ser 0.8 o 1.0
+    
+    for spine in ax.spines.values():
+        spine.set_visible(True) # Nos aseguramos de que esté visible
+        spine.set_linewidth(grosor_delgado) # Grosor fino
+        spine.set_edgecolor(color_marco)    # Color sutil
     return fig
 
 # --- 5. MÉTRICAS PARA MEMORIA DE CÁLCULO ---
