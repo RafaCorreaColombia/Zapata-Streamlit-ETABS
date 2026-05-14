@@ -168,9 +168,9 @@ def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, Cy_real, xr, yr, nube_p
 
     # 3.1 Marcar puntos de control
     # Centro Geométrico (X azul)
-    ax.scatter([Cx_real], [0], color='blue', marker='x', s=120, label='Centro Geométrico (Cx)', zorder=5)
+    ax.scatter([Cx_real], [0], color='blue', marker='x', s=90, alpha=0.8, label='Centro Geométrico (Cx)', zorder=5)
     # Resultante de Cargas (O verde)
-    ax.scatter([xr], [yr], color='green', marker='o', s=120, edgecolors='white', label='Resultante Maestra', zorder=5)
+    ax.scatter([xr], [yr], color='green', marker='o', s=90, alpha=0.8, edgecolors='white', label='Resultante Maestra', zorder=5)
     
     # 4. Líneas de referencia (Ejes)
     ax.axhline(0, color='gray', lw=0.8, ls='--', alpha=0.5)
