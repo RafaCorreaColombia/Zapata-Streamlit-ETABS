@@ -127,7 +127,7 @@ def optimizar_ancho_B(L, P_total, M_long, M_trans, q_neto, B_min_fisico):
         B += 0.05
     return round(B, 1)
 
-def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, Cy_real, xr, yr):
+def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, Cy_real, xr, yr, nube_puntos=None):
     fig, ax = plt.subplots(figsize=(10, 6))
     
     # --- LÓGICA DE POSICIONAMIENTO ---
