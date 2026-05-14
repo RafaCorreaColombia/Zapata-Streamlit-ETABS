@@ -159,11 +159,18 @@ def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, Cy_real, xr, yr):
         ax.add_patch(rect_col)
         ax.text(dist_x, t_trans/2 + 0.1, f"N-{info['id']}", ha='center', fontweight='bold', fontsize=9)
 
-    # 3. Marcar puntos de control
+    # 3.0 DIBUJAR NUBE DE PUNTOS (Combinaciones de Servicio)
+    if nube_puntos:
+        xs = [p[0] for p in nube_puntos]
+        ys = [p[1] for p in nube_puntos]
+        ax.scatter(xs, ys, color='purple', marker='x', s=30, alpha=0.6, 
+                   label='Otras Combs. Servicio', zorder=4)
+
+    # 3.1 Marcar puntos de control
     # Centro Geométrico (X azul)
-    ax.scatter([Cx_real], [0], color='blue', marker='x', s=120, label='Centro Geométrico (Cx)', zorder=4)
+    ax.scatter([Cx_real], [0], color='blue', marker='x', s=120, label='Centro Geométrico (Cx)', zorder=5)
     # Resultante de Cargas (O verde)
-    ax.scatter([xr], [yr], color='green', marker='o', s=120, edgecolors='white', label='Resultante (Xr)', zorder=5)
+    ax.scatter([xr], [yr], color='green', marker='o', s=120, edgecolors='white', label='Resultante Maestra', zorder=5)
     
     # 4. Líneas de referencia (Ejes)
     ax.axhline(0, color='gray', lw=0.8, ls='--', alpha=0.5)
