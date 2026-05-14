@@ -197,6 +197,8 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
 
             # El B_optimo final es el más grande de todos los requeridos
             B_optimo = max(anchos_necesarios)
+            if B_optimo >= 14.9:
+                st.error("⚠️ Atención: No se encontró un ancho B menor a 15 m que elimine la tracción para todas las combinaciones. Revisa la longitud L o el espesor H.")
 
             # E. Memoria de Presiones (Envolvente)
             st.subheader("📑 Memoria de Verificación de Presiones y Centroides")
@@ -252,7 +254,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             
             # Mostrar en Streamlit
             # --- TABLA DE AUDITORÍA GEOMÉTRICA ---
-            with st.expander("🔍 Auditoría de Bordes y Coordenadas"):
+            with st.expander("🔍 Auditoría de Bordes y Coordenadas", expanded=True):
                 st.write(f"**Límites Zapata (Eje X):** [{Cx_real - L_zapata/2:.3f} m , {Cx_real + L_zapata/2:.3f} m]")
                 audit_data = []
                 for info in info_nodos:
