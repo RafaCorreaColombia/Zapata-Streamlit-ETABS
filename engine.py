@@ -352,6 +352,48 @@ def obtener_trapecio_diseno_u(L, B, Cx_real, Cy_real, P_total, M_long, M_trans):
     }
 
 
+# --- En engine.py ---
+
+def calcular_diagramas_estructurales(L, qu_izq, qu_der, info_nodos_reac, Cx_real):
+    """
+    Calcula V(x) y M(x) a lo largo del eje longitudinal.
+    info_nodos_reac: lista con [{'x_rel': dist, 'Pu': valor}, ...]
+    """
+    # 1. Discretización (puntos cada 2cm para suavidad)
+    paso = 0.02
+    x_coords = np.arange(0, L + paso, paso)
+    
+    cortantes = []
+    momentos = []
+    
+    # El origen de x_coords es el borde izquierdo de la zapata.
+    # Necesitamos ubicar las columnas en este sistema.
+    # x_col_en_zapata = (x_rel_nodo_1) - (Cx_real - L/2)
+    offset_izq = Cx_real - (L / 2)
+    
+    for x in x_coords:
+        # --- A. INTEGRAL DE LA PRESIÓN DEL SUELO (Hacia arriba +) ---
+        # Área del trapecio hasta x
+        q_x = qu_izq + (qu_der - qu_izq) * (x / L)
+        V_suelo = ((qu_izq + q_x) / 2) * x
+        # Momento del trapecio respecto a x: M = integral de V
+        # M_suelo = (qu_izq * x^2 / 2) + (qu_der - qu_izq) * x^3 / (6*L)
+        M_suelo = (qu_izq * (x**2) / 2) + ((qu_der - qu_izq) * (x**3) / (6 * L))
+        
+        # --- B. SUMATORIA DE CARGAS PUNTUALES (Columnas hacia abajo -) ---
+        V_cols = 0
+        M_cols = 0
+        for col in info_nodos_reac:
+            x_col = col['x_rel'] - offset_izq
+            if x >= x_col:
+                V_cols -= col['Pu']
+                M_cols -= col['Pu'] * (x - x_col)
+        
+        cortantes.append(V_suelo + V_cols)
+        momentos.append(M_suelo + M_cols)
+        
+    return x_coords, cortantes, momentos
+
 
 def diseno_refuerzo(Mu, d, B, fc, fy=420):
     phi, b, d_mm = 0.9, B * 1000, d * 1000
