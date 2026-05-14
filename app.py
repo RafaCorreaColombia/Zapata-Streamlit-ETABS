@@ -399,51 +399,60 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             
             
             
-            # --- En app.py, después de la tabla de punzonamiento ---
-            st.subheader("📈 Diagramas de Solicitudes (Estado Límite)")
+            # --- G. DIAGRAMAS DE SOLICITUDES (ESTADO LÍMITE) ---
+            st.subheader("📈 Diagramas de Solicitudes Longitudinales")
             
-            # Usamos Plotly para permitir interactividad (hacer zoom, apagar/prender curvas)
             fig_v = go.Figure()
             fig_m = go.Figure()
             
-            # Colores para las curvas
-            colores = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3']
-            
-            # Iteramos sobre todas las combinaciones de diseño que el usuario seleccionó
-            for i, cb_u in enumerate(resultados_u):
-                # 1. Extraer Pu de cada columna para esta comb
-                info_reac_u = []
-                for info in info_nodos:
-                    # Buscamos la reacción grabada previamente en el bucle de punzonamiento
-                    # o la extraemos de nuevo si es necesario
-                    r_u = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','') == info['id']) & 
-                               (df_r[col_comb] == cb_u)].iloc[0]
-                    dist_x_rel = np.linalg.norm(info['coords'] - info_nodos[0]['coords'])
-                    info_reac_u.append({'x_rel': dist_x_rel, 'Pu': r_u[col_fz]})
-            
-                # 2. Obtener presiones de la franja crítica para esta combinación
-                # (Asumiendo que guardaste los resultados de 'obtener_trapecio_diseno_u' en un diccionario)
-                # Por ahora, usemos el 'trapecio' calculado en el bucle principal de diseño
-                
-                # 3. Calcular el diagrama
+            # Iteramos sobre la lista de resultados ya procesados
+            for i, res in enumerate(resultados_u):
+                # Llamamos al motor usando los datos que guardamos en el diccionario 'res'
                 x_diag, v_diag, m_diag = engine.calcular_diagramas_estructurales(
                     L_zapata, 
-                    qu_izq_comb, # Estos deben venir del bucle de diseño u
-                    qu_der_comb, 
-                    info_reac_u, 
+                    res['qu_izq'],    # Presión trapecio izquierda
+                    res['qu_der'],    # Presión trapecio derecha
+                    res['info_reac'], # Lista de {'x_rel', 'Pu'}
                     Cx_real
                 )
                 
-                # 4. Añadir a los gráficos
-                visible = 'legendonly' if i > 2 else True # Solo mostramos las primeras 3 para no saturar
+                # Configuración de visibilidad inicial (solo mostramos las primeras 3 para no saturar)
+                is_visible = True if i < 3 else 'legendonly'
                 
-                fig_v.add_trace(go.Scatter(x=x_diag, y=v_diag, name=cb_u, line=dict(width=1.5), visible=visible))
-                fig_m.add_trace(go.Scatter(x=x_diag, y=m_diag, name=cb_u, line=dict(width=1.5), visible=visible))
+                # Añadir curvas de Cortante
+                fig_v.add_trace(go.Scatter(
+                    x=x_diag, y=v_diag, 
+                    name=res['comb'], 
+                    mode='lines',
+                    visible=is_visible
+                ))
+                
+                # Añadir curvas de Momento
+                fig_m.add_trace(go.Scatter(
+                    x=x_diag, y=m_diag, 
+                    name=res['comb'], 
+                    mode='lines',
+                    visible=is_visible
+                ))
+
+            # Ajustes estéticos de los gráficos
+            fig_v.update_layout(
+                title="Envolvente de Cortante V(x)",
+                xaxis_title="Distancia desde borde izquierdo [m]",
+                yaxis_title="Cortante [kN]",
+                hovermode="x unified",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
             
-            # Ajustes de Layout
-            fig_v.update_layout(title="Envolvente de Cortante V(x)", yaxis_title="V [kN]", hovermode="x unified")
-            fig_m.update_layout(title="Envolvente de Momento M(x)", yaxis_title="M [kN-m]", hovermode="x unified")
-            
+            fig_m.update_layout(
+                title="Envolvente de Momento M(x)",
+                xaxis_title="Distancia desde borde izquierdo [m]",
+                yaxis_title="Momento [kN-m]",
+                hovermode="x unified",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+
+            # Dibujar en Streamlit
             st.plotly_chart(fig_v, use_container_width=True)
             st.plotly_chart(fig_m, use_container_width=True)
 
