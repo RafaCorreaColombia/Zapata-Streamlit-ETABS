@@ -192,7 +192,7 @@ def generar_planta_zapata(L, B, info_nodos, s1, Cx_real, Cy_real, xr, yr, nube_p
     plt.tight_layout()
     
     color_marco = '#444444' 
-    grosor_delgado = 0.5  # El valor por defecto suele ser 0.8 o 1.0
+    grosor_delgado = 0.1  # El valor por defecto suele ser 0.8 o 1.0
     
     for spine in ax.spines.values():
         spine.set_visible(True) # Nos aseguramos de que esté visible
