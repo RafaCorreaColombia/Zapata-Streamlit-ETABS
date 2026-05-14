@@ -59,8 +59,10 @@ def obtener_angulo_zapata(p1, p2):
     return np.arctan2(dy, dx)
 
 def transformar_momentos_a_local(mx_global, my_global, alpha):
-    m_eje_long = mx_global * np.cos(alpha) + my_global * np.sin(alpha)
-    m_eje_trans = -mx_global * np.sin(alpha) + my_global * np.cos(alpha)
+    m_eje_long_rot = mx_global * np.cos(alpha) + my_global * np.sin(alpha)
+    m_eje_trans_rot = -mx_global * np.sin(alpha) + my_global * np.cos(alpha)
+    m_eje_long = -m_eje_long_rot
+    m_eje_trans = -m_eje_trans_rot
     return m_eje_long, m_eje_trans
 
 # --- 3. LÓGICA MULTICOLUMNA Y RESULTANTES ---
