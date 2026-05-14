@@ -327,6 +327,8 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                     'franja': trapecio['franja'],
                     'x_res': res_u['x_resultante'],
                     'm_trans': res_u['m_trans_total']
+                    'info_reac': [{'x_rel': np.linalg.norm(n['coords'] - info_nodos[0]['coords']), 
+                                   'Pu': n['reac_u']['FZ']} for n in info_nodos]
                 })
             
             # Convertir a DataFrame para tener una "Tabla Maestra de Diseño"
@@ -398,9 +400,6 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             
             
             # --- En app.py, después de la tabla de punzonamiento ---
-            
-            # --- En app.py ---
-
             st.subheader("📈 Diagramas de Solicitudes (Estado Límite)")
             
             # Usamos Plotly para permitir interactividad (hacer zoom, apagar/prender curvas)
@@ -411,7 +410,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             colores = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3']
             
             # Iteramos sobre todas las combinaciones de diseño que el usuario seleccionó
-            for i, cb_u in enumerate(combs_ultimas):
+            for i, cb_u in enumerate(resultados_u):
                 # 1. Extraer Pu de cada columna para esta comb
                 info_reac_u = []
                 for info in info_nodos:
