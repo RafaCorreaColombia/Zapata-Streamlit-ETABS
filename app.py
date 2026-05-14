@@ -252,7 +252,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                 Cx_real, 
                 Cy_real, 
                 xr_maestra,
-                yr_maestra
+                yr_maestra, 
                 nube_puntos=puntos_servicio
             )
             
