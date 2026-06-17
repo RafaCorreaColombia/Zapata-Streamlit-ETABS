@@ -317,7 +317,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                 M_viga_locales = sum(n['reac_u_rot']['MT'] for n in info_nodos)
                 
                 # El momento longitudinal neto real que actúa sobre el suelo:
-                M_long_u_signed = - M_viga_vertical + M_viga_locales
+                M_long_u_signed = + M_viga_vertical + M_viga_locales
                 
                 x_izq = Cx_real - L_zapata/2
                 x_der = Cx_real + L_zapata/2
