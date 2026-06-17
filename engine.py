@@ -392,8 +392,8 @@ def calcular_diagramas_estructurales(L, B_total, q_eje_izq, q_eje_der, info_nodo
         for col in info_nodos_reac:
             x_col = col['x_rel'] - offset_izq
             if x >= x_col:
-                V_cols -= col['Pu']
-                M_cols -= col['Pu'] * (x - x_col)
+                V_cols += col['Pu']
+                M_cols += col['Pu'] * (x - x_col) - col.get('Mu_long', 0.0)
         
         cortantes.append(V_suelo - V_cols)
         momentos.append(M_suelo - M_cols)
