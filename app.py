@@ -311,7 +311,13 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                 
                 # Excentricidad longitudinal con signo respecto al centro de la zapata
                 e_L_u_signed = res_u['x_resultante'] - Cx_real
-                M_long_u_signed = e_L_u_signed * res_u['R_total']
+                M_viga_vertical = e_L_u_signed * res_u['R_total']
+                
+                # NUEVO: Sumamos los momentos longitudinales locales de cada columna extraídos de ETABS
+                M_viga_locales = sum(n['reac_u_rot']['MT'] for n in info_nodos)
+                
+                # El momento longitudinal neto real que actúa sobre el suelo:
+                M_long_u_neto = M_viga_vertical + M_viga_locales
                 
                 x_izq = Cx_real - L_zapata/2
                 x_der = Cx_real + L_zapata/2
