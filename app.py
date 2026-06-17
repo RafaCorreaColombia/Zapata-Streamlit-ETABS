@@ -395,6 +395,21 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             # --- H. DIAGRAMAS DE SOLICITUDES DE DISEÑO ESCALADOS ---
             st.subheader("📈 Diagramas de Solicitudes Longitudinales de Diseño")
             
+            # --- BLOQUE DE AUDITORÍA DE PRESIONES EN EL EJE CENTRAL (NUEVO) ---
+            with st.expander("🔍 Auditoría de Presiones Últimas en el Eje Central (y = 0)", expanded=True):
+                st.markdown("Valores de presión base ($q_{u}$) en los extremos del eje central que entran al integrador numérico:")
+                tabla_presiones_eje = []
+                for res in resultados_u:
+                    tabla_presiones_eje.append({
+                        "Combinación": res['comb'],
+                        "qu_eje Izquierda [kN/m²]": round(res['q_eje_izq'], 2),
+                        "qu_eje Derecha [kN/m²]": round(res['q_eje_der'], 2),
+                        "Factor k_inc": round(res['k_inc'], 3),
+                        "R Total [kN]": round(res['R_total'], 1)
+                    })
+                st.table(pd.DataFrame(tabla_presiones_eje))
+            # ------------------------------------------------------------------
+            
             fig_v = go.Figure()
             fig_m = go.Figure()
             
