@@ -42,11 +42,22 @@ def obtener_geometria_columna(nodo_id, df_conn, df_sum, df_sec):
         df_sec['Name'] = df_sec['Name'].astype(str).str.strip()
         row_sec = df_sec[df_sec['Name'] == nombre_seccion].iloc[0]
         
+        # --- CORRECCIÓN QUIRÚRGICA PARA SECCIONES CIRCULARES ---
+        t3_val = row_sec['t3'] / 1000  # Convertir mm a m
+        forma = str(row_sec['Shape']).strip().lower()
+        
+        # Si explícitamente dice 'concrete circle' o si t2 no es numérico/está vacío
+        if 'circle' in forma or pd.isna(row_sec['t2']) or row_sec['t2'] == '':
+            t2_val = t3_val  # En un círculo, t2 (ancho transversal) es igual al diámetro (t3)
+        else:
+            t2_val = row_sec['t2'] / 1000 # Rectangular normal
+        
         return {
             'label': col_label,
             'seccion': nombre_seccion,
-            't3': row_sec['t3'] / 1000, 
-            't2': row_sec['t2'] / 1000  
+            'forma': forma, # Guardamos la forma por si la necesitamos en punzonamiento
+            't3': t3_val,   # t_long 
+            't2': t2_val    # t_trans corregido
         }
     except:
         return None
