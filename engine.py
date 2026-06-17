@@ -80,6 +80,10 @@ def procesar_geometria_multicolumna(lista_nodos, key_reac='reac'):
         dist_rel = np.linalg.norm(nodo['coords'] - p_ref)
         reac = nodo[key_reac]
         ml, mt = transformar_momentos_a_local(reac['MX'], reac['MY'], alpha)
+
+        # NUEVO: Guardamos explícitamente los momentos locales rotados 
+        # para que el integrador de diagramas pueda leer 'Mu_long'
+        nodo[key_reac + '_rot'] = {'ML': ml, 'MT': mt}
         
         fz = abs(reac['FZ'])
         r_total += fz
@@ -354,10 +358,11 @@ def obtener_trapecio_diseno_u(L, B, Cx_real, Cy_real, P_total, M_long, M_trans):
 
 # --- En engine.py ---
 
-def calcular_diagramas_estructurales(L, qu_izq, qu_der, info_nodos_reac, Cx_real):
+def calcular_diagramas_estructurales(L, B_total, q_eje_izq, q_eje_der, info_nodos_reac, Cx_real):
     """
-    Calcula V(x) y M(x) a lo largo del eje longitudinal.
-    info_nodos_reac: lista con [{'x_rel': dist, 'Pu': valor}, ...]
+    Calcula V(x) y M(x) integrando sobre el eje neutro (y=0) para toda la viga de ancho B_total.
+    info_nodos_reac debe contener: [{'x_rel': dist, 'Pu': valor, 'Mu_long': valor}, ...]
+    Garantiza el cierre estático perfecto a cero.
     """
     # 1. Discretización (puntos cada 2cm para suavidad)
     paso = 0.02
@@ -371,13 +376,14 @@ def calcular_diagramas_estructurales(L, qu_izq, qu_der, info_nodos_reac, Cx_real
     # x_col_en_zapata = (x_rel_nodo_1) - (Cx_real - L/2)
     offset_izq = Cx_real - (L / 2)
     
+    # Convertimos el esfuerzo puntual del eje en carga lineal de la viga total (kN/m)
+    qu_izq = q_eje_izq * B_total
+    qu_der = q_eje_der * B_total
+    
     for x in x_coords:
         # --- A. INTEGRAL DE LA PRESIÓN DEL SUELO (Hacia arriba +) ---
-        # Área del trapecio hasta x
         q_x = qu_izq + (qu_der - qu_izq) * (x / L)
         V_suelo = ((qu_izq + q_x) / 2) * x
-        # Momento del trapecio respecto a x: M = integral de V
-        # M_suelo = (qu_izq * x^2 / 2) + (qu_der - qu_izq) * x^3 / (6*L)
         M_suelo = (qu_izq * (x**2) / 2) + ((qu_der - qu_izq) * (x**3) / (6 * L))
         
         # --- B. SUMATORIA DE CARGAS PUNTUALES (Columnas hacia abajo -) ---
