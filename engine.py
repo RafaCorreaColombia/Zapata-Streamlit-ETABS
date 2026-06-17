@@ -42,22 +42,25 @@ def obtener_geometria_columna(nodo_id, df_conn, df_sum, df_sec):
         df_sec['Name'] = df_sec['Name'].astype(str).str.strip()
         row_sec = df_sec[df_sec['Name'] == nombre_seccion].iloc[0]
         
-        # --- CORRECCIÓN QUIRÚRGICA PARA SECCIONES CIRCULARES ---
-        t3_val = row_sec['t3'] / 1000  # Convertir mm a m
+        # --- VERIFICACIÓN ANTI-NaN ROBUSTA ---
+        t3_val = row_sec['t3'] / 1000  # Diámetro o dimensión longitudinal en metros
         forma = str(row_sec['Shape']).strip().lower()
         
-        # Si explícitamente dice 'concrete circle' o si t2 no es numérico/está vacío
-        if 'circle' in forma or pd.isna(row_sec['t2']) or row_sec['t2'] == '':
-            t2_val = t3_val  # En un círculo, t2 (ancho transversal) es igual al diámetro (t3)
+        # Primero revisamos si la celda original de t2 es nula (NaN) usando Pandas
+        es_t2_nulo = pd.isna(row_sec['t2'])
+        
+        # Si es un círculo, o si viene vacío el campo en ETABS, duplicamos t3 en t2
+        if 'circle' in forma or es_t2_nulo or str(row_sec['t2']).strip() == '':
+            t2_val = t3_val
         else:
-            t2_val = row_sec['t2'] / 1000 # Rectangular normal
+            t2_val = float(row_sec['t2']) / 1000  # Nos aseguramos de forzar el float antes de dividir
         
         return {
             'label': col_label,
             'seccion': nombre_seccion,
-            'forma': forma, # Guardamos la forma por si la necesitamos en punzonamiento
+            'forma': forma,
             't3': t3_val,   # t_long 
-            't2': t2_val    # t_trans corregido
+            't2': t2_val    # t_trans (ya no será NaN jamás)
         }
     except:
         return None
