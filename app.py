@@ -204,7 +204,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             if B_optimo >= 14.9:
                 st.error("⚠️ Atención: No se encontró un ancho B menor a 15 m que elimine la tracción para todas las combinaciones. Revisa la longitud L o el espesor H.")
 
-            # E. Memoria de Presiones (Envolvente)
+            # E1. Memoria de Presiones (Envolvente)
             st.subheader("📑 Memoria de Verificación de Presiones y Centroides")
             st.write(f"Dimensiones Finales: **L = {L_zapata:.2f} m** | **B = {B_optimo:.2f} m** | **H = {H_prelim:.2f} m (Preliminar)**")
             
@@ -236,7 +236,7 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             df_memoria = pd.DataFrame(lista_memoria)
             st.table(df_memoria)
 
-            # --- G. REPRESENTACIÓN GRÁFICA ---
+            # --- E2. REPRESENTACIÓN GRÁFICA ---
             st.markdown("---")
             st.subheader("🖼️ Visualización en Planta")
             
@@ -277,107 +277,105 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
             
             st.caption(f"Nota: El origen (0,0) está ubicado en el centro del primer nodo seleccionado (Nodo {nodos_ord[0]}).")
 
-            # --- F DISEÑO ESTRUCTURAL (COMB. ÚLTIMAS) ---
+            # --- F.1 DISEÑO ESTRUCTURAL (COMB. ÚLTIMAS) ---
             st.markdown("---")
             
             # Usamos el espesor H preliminar
             d = H_prelim - 0.075 - .01
             st.write(f"📏 Espesor de Cálculo: **H = {H_prelim:.2f} m** (Base: {H_base:.2f} m + ΔH: {delta_H_usr:.2f} m)")
 
-            # --- F. ANÁLISIS DE COMBINACIONES ÚLTIMAS (DISEÑO) ---
+            # --- F.2 ANÁLISIS DE COMBINACIONES ÚLTIMAS (DISEÑO) ---
             resultados_u = []
-
-            # En app.py, antes del bucle de combinaciones últimas:     
             geometria_punzonamiento = {}
             
+            # Inicializamos la geometría de punzonamiento para cada columna
             for info in info_nodos:
                 dist_x_rel = np.linalg.norm(info['coords'] - info_nodos[0]['coords'])
                 geo = engine.analizar_columna_punzonamiento(
-                    dist_x_rel, 0, # <-- Ahora usamos dist_x_rel en lugar de info['coords'][0]
-                    info['geo']['t3'], info['geo']['t2'], # tL y tT
+                    dist_x_rel, 0, 
+                    info['geo']['t3'], info['geo']['t2'], 
                     d, L_zapata, B_optimo, Cx_real, Cy_real, fc
                 )
                 geometria_punzonamiento[info['id']] = geo
             
+            # Bucle principal sobre combinaciones de diseño (Últimas)
             for cb_u in combs_ultimas:
-                # 1. ACTUALIZAR REACCIONES PARA ESTA COMBINACIÓN ESPECÍFICA
+                # 1. Actualizar reacciones para esta combinación específica
                 for info_act in info_nodos:
                     r_u_act = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','') == info_act['id']) & 
                                    (df_r[col_comb] == cb_u)].iloc[0]
                     info_act['reac_u'] = {'FZ': r_u_act[col_fz], 'MX': r_u_act[col_mx], 'MY': r_u_act[col_my]}
                 
-                # 2. CALCULAR ESTÁTICA DE LA COMBINACIÓN
+                # 2. Calcular estática de la combinación (Carga total y excentricidades)
                 res_u = engine.procesar_geometria_multicolumna(info_nodos, key_reac='reac_u')
                 
-                # 3. Obtener trapecio de diseño según tu lógica de B/4
-                e_L_u = abs(Cx_real - res_u['x_resultante'])
-                M_long_u = e_L_u * res_u['R_total']
+                # Excentricidad longitudinal con signo respecto al centro de la zapata
+                e_L_u_signed = res_u['x_resultante'] - Cx_real
+                M_long_u_signed = e_L_u_signed * res_u['R_total']
                 
-                trapecio = engine.obtener_trapecio_diseno_u(
-                    L_zapata, B_optimo, Cx_real, Cy_real, 
-                    res_u['R_total'], M_long_u, res_u['m_trans_total']
-                )
+                x_izq = Cx_real - L_zapata/2
+                x_der = Cx_real + L_zapata/2
                 
-                # 4. Guardar todo el paquete de datos de esta combinación
+                # 3. Presiones base en el eje neutro (y = 0) para el equilibrio estático de la viga
+                q_eje_izq = engine.calcular_q_en_punto(x_izq, 0.0, L_zapata, B_optimo, Cx_real, Cy_real, res_u['R_total'], M_long_u_signed, 0.0)
+                q_eje_der = engine.calcular_q_en_punto(x_der, 0.0, L_zapata, B_optimo, Cx_real, Cy_real, res_u['R_total'], M_long_u_signed, 0.0)
+                
+                # 4. Cálculo del factor de incremento (k_inc) por excentricidad transversal en el centro de la zapata
+                q_eje_centro = engine.calcular_q_en_punto(Cx_real, 0.0, L_zapata, B_optimo, Cx_real, Cy_real, res_u['R_total'], M_long_u_signed, res_u['m_trans_total'])
+                q_norte_centro = engine.calcular_q_en_punto(Cx_real, B_optimo/4, L_zapata, B_optimo, Cx_real, Cy_real, res_u['R_total'], M_long_u_signed, res_u['m_trans_total'])
+                q_sur_centro = engine.calcular_q_en_punto(Cx_real, -B_optimo/4, L_zapata, B_optimo, Cx_real, Cy_real, res_u['R_total'], M_long_u_signed, res_u['m_trans_total'])
+                q_crit_centro = max(q_norte_centro, q_sur_centro)
+                
+                pct_inc = abs(q_crit_centro - q_eje_centro) / q_eje_centro if q_eje_centro > 0.001 else 0.0
+                k_inc = 1.0 + pct_inc
+                
+                # 5. Construcción de la lista de reacciones de columnas incluyendo el momento local rotado
+                info_reac_list = []
+                for n in info_nodos:
+                    dist_x_rel = np.linalg.norm(n['coords'] - info_nodos[0]['coords'])
+                    info_reac_list.append({
+                        'x_rel': dist_x_rel, 
+                        'Pu': n['reac_u']['FZ'],
+                        'Mu_long': n['reac_u_rot']['MT'] # Clave rotada generada por tu motor
+                    })
+                
+                # Guardamos el paquete de datos unificado
                 resultados_u.append({
                     'comb': cb_u,
                     'R_total': res_u['R_total'],
-                    'qu_izq': trapecio['qu_izq'],
-                    'qu_der': trapecio['qu_der'],
-                    'franja': trapecio['franja'],
-                    'x_res': res_u['x_resultante'],
-                    'm_trans': res_u['m_trans_total'],
-                    'info_reac': [{'x_rel': np.linalg.norm(n['coords'] - info_nodos[0]['coords']), 
-                                   'Pu': n['reac_u']['FZ']} for n in info_nodos]
+                    'q_eje_izq': q_eje_izq,
+                    'q_eje_der': q_eje_der,
+                    'k_inc': k_inc,
+                    'info_reac': info_reac_list
                 })
             
-            # Convertir a DataFrame para tener una "Tabla Maestra de Diseño"
             df_diseno_u = pd.DataFrame(resultados_u)
             
             # --- G. CHEQUEO DE PUNZONAMIENTO (ENVOLVENTE POR COLUMNA) ---
-            st.subheader("🛡️ Verificación de Punzonamiento ( punching shear)")
-            
+            st.subheader("🛡️ Verificación de Punzonamiento (punching shear)")
             resumen_punzonamiento = []
             
-            # Iteramos por cada columna
             for info in info_nodos:
                 col_id = info['id']
-                geo_p = geometria_punzonamiento[col_id] # Recuperamos la geometría calculada antes
-                
+                geo_p = geometria_punzonamiento[col_id]
                 max_vu = -1e9
                 comb_critica_p = ""
-                qu_en_centroide_critico = 0
                 
-                # Buscamos en todas las combinaciones últimas cuál es la más exigente para esta columna
                 for cb_u in combs_ultimas:
-                    # 1. Obtener Pu de esta columna en esta combinación
-                    r_u = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','') == col_id) & 
-                                 (df_r[col_comb] == cb_u)].iloc[0]
+                    r_u = df_r[(df_r[col_nodo_r].astype(str).str.replace('.0','') == col_id) & (df_r[col_comb] == cb_u)].iloc[0]
                     Pu_col = r_u[col_fz]
                     
-                    # 2. Calcular presión en el centroide del área crítica (x_c, y=0)
-                    # Necesitamos recuperar los datos de la combinación para evaluar q
                     res_u = engine.procesar_geometria_multicolumna(info_nodos, key_reac='reac_u') 
-                    # (Asegúrate de que info['reac_u'] esté cargado para cb_u como en el bucle anterior)
+                    e_L_u_signed = res_u['x_resultante'] - Cx_real
+                    M_long_u_signed = e_L_u_signed * res_u['R_total']
                     
-                    e_L_u = abs(Cx_real - res_u['x_resultante'])
-                    M_long_u = e_L_u * res_u['R_total']
-                    
-                    q_cent = engine.calcular_q_en_punto(
-                        geo_p['xc'], Cy_real, 
-                        L_zapata, B_optimo, Cx_real, Cy_real, 
-                        res_u['R_total'], M_long_u, res_u['m_trans_total']
-                    )
-                    
-                    # 3. Vu = Pu - (q_contacto * Area_critica)
+                    q_cent = engine.calcular_q_en_punto(geo_p['xc'], Cy_real, L_zapata, B_optimo, Cx_real, Cy_real, res_u['R_total'], M_long_u_signed, res_u['m_trans_total'])
                     Vu_actual = Pu_col - (q_cent * geo_p['Ac'])
                     
                     if Vu_actual > max_vu:
                         max_vu = Vu_actual
                         comb_critica_p = cb_u
-                        qu_en_centroide_critico = q_cent
-            
-                # 4. Consolidar resultados de la columna
+                
                 cumple = geo_p['phi_Vc'] > max_vu
                 resumen_punzonamiento.append({
                     "Columna": col_id,
@@ -391,78 +389,56 @@ if all([f_reac, f_coords, f_conn, f_sum, f_sec]):
                     "Estado": "✅ OK" if cumple else "❌ FALLA"
                 })
             
-            # Mostrar Tabla de Resultados
-            df_punz = pd.DataFrame(resumen_punzonamiento)
-            st.table(df_punz)
-
+            st.table(pd.DataFrame(resumen_punzonamiento))
             st.success(f"### ✅ Memoria Generada Exitosamente")
             
-            
-            
-            # --- G. DIAGRAMAS DE SOLICITUDES (ESTADO LÍMITE) ---
-            st.subheader("📈 Diagramas de Solicitudes Longitudinales")
+            # --- H. DIAGRAMAS DE SOLICITUDES DE DISEÑO ESCALADOS ---
+            st.subheader("📈 Diagramas de Solicitudes Longitudinales de Diseño")
             
             fig_v = go.Figure()
             fig_m = go.Figure()
             
-            # Iteramos sobre la lista de resultados ya procesados
             for i, res in enumerate(resultados_u):
-                # Llamamos al motor usando los datos que guardamos en el diccionario 'res'
-                x_diag, v_diag, m_diag = engine.calcular_diagramas_estructurales(
-                    L_zapata, 
-                    res['qu_izq'],    # Presión trapecio izquierda
-                    res['qu_der'],    # Presión trapecio derecha
-                    res['info_reac'], # Lista de {'x_rel', 'Pu'}
-                    Cx_real
+                # 1. Calculamos los diagramas base sobre la línea central (Equilibrio estático perfecto)
+                x_diag, v_eje, m_eje = engine.calcular_diagramas_estructurales(
+                    L_zapata, B_optimo, res['q_eje_izq'], res['q_eje_der'], res['info_reac'], Cx_real
                 )
                 
-                # Configuración de visibilidad inicial (solo mostramos las primeras 3 para no saturar)
+                # 2. Aplicamos el factor de escala k_inc y normalizamos por metro lineal de ancho (/ B_optimo)
+                v_diseno = [(v * res['k_inc']) / B_optimo for v in v_eje]
+                m_diseno = [(m * res['k_inc']) / B_optimo for m in m_eje]
+                
                 is_visible = True if i < 3 else 'legendonly'
                 
-                # Añadir curvas de Cortante
-                fig_v.add_trace(go.Scatter(
-                    x=x_diag, y=v_diag, 
-                    name=res['comb'], 
-                    mode='lines',
-                    visible=is_visible
-                ))
-                
-                # Añadir curvas de Momento
-                fig_m.add_trace(go.Scatter(
-                    x=x_diag, y=m_diag, 
-                    name=res['comb'], 
-                    mode='lines',
-                    visible=is_visible
-                ))
+                # Añadir curvas a Plotly
+                fig_v.add_trace(go.Scatter(x=x_diag, y=v_diseno, name=res['comb'], mode='lines', visible=is_visible))
+                fig_m.add_trace(go.Scatter(x=x_diag, y=m_diseno, name=res['comb'], mode='lines', visible=is_visible))
 
-            # Ajustes estéticos de los gráficos
+            # Ajustes estéticos de las envolventes
             fig_v.update_layout(
-                title="Envolvente de Cortante V(x)",
+                title="Envolvente de Cortante Último Vu [kN/m]",
                 xaxis_title="Distancia desde borde izquierdo [m]",
-                yaxis_title="Cortante [kN]",
+                yaxis_title="Cortante de Diseño [kN/m]",
                 hovermode="x unified",
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
             
             fig_m.update_layout(
-                title="Envolvente de Momento M(x)",
+                title="Envolvente de Momento Último Mu [kN-m/m]",
                 xaxis_title="Distancia desde borde izquierdo [m]",
-                yaxis_title="Momento [kN-m]",
+                yaxis_title="Momento de Diseño [kN-m/m]",
                 hovermode="x unified",
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
 
-            # Dibujar en Streamlit
             st.plotly_chart(fig_v, use_container_width=True)
             st.plotly_chart(fig_m, use_container_width=True)
 
-            
-            
-            # F. Resumen de Ingeniería
+            # Resumen técnico final
             st.markdown("---")
             st.write("**Notas de Memoria:**")
             st.write(f"- Se garantiza que el centro geométrico coincide con el centro de fuerzas de **{comb_maestra}** salvo ajuste manual ΔL/ΔT.")
-            st.write("- El eje longitudinal se define como el vector que une los centros de las columnas extremas.")
+            st.write("- Los diagramas longitudinales base se integran sobre el eje mecánico garantizando equilibrio estático absoluto, escalándose posteriormente para absorber los efectos de flexión biaxial de manera conservadora.")
             
 else:
     st.warning("Cargue los archivos para iniciar la memoria.")
